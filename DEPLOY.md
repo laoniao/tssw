@@ -42,30 +42,39 @@ npm run dev      # 打开 http://localhost:3000
 
 ### 方案 A：GitHub + Render（免费，最简单，不用自己买服务器）
 
-1. **把代码推到 GitHub**
-   - 在项目根新建 `.gitignore`，加入：
-     ```
-     node_modules/
-     server/node_modules/
-     server/data/data.json
-     dist/
-     ```
-   - 创建 GitHub 仓库，把 `server/`、`src/`、`index.html`、`package.json`、
-     `vite.config.js`、`.env.production` 等提交上去（**不要提交 `server/data/data.json`**，让它首次启动自动生成种子）。
+> 本地已帮你完成 git 初始化并提交初始版本（`.gitignore` 与 `render.yaml` 已就位，
+> `node_modules/`、`dist/`、`server/data/data.json`、`server/uploads/`、`.workbuddy/` 已正确忽略）。
+> 你只需：GitHub 建空仓库 → 关联推送 → Render 关联仓库。
 
-2. **在 Render 创建 Web Service**
+1. **在 GitHub 新建空仓库**（不要勾选 README / .gitignore / License，本地已有）。
+2. **本地关联并推送**（URL 换成你刚建的仓库地址）：
+   ```bash
+   git remote add origin https://github.com/你的用户名/你的仓库名.git
+   git branch -M main
+   git push -u origin main
+   ```
+3. **在 Render 创建 Web Service**
    - 登录 https://render.com （可用 GitHub 登录）
    - New → Web Service → 关联你的 GitHub 仓库
-   - 配置：
-     - **Build Command**: `npm install && npm run build`
-     - **Start Command**: `node server/index.js`
-     - **Environment**: 加一个变量 `PORT=3001`（Render 会自动注入，但写死更稳）
-   - 创建后会分配一个 `xxx.onrender.com` 的公网网址。
-   - **注意**：Render 免费版休眠后 `data.json` 仍在（持久磁盘），但**免费实例重启会重置非持久目录**——
-     本项目数据写在 `server/data/data.json`，Render 的磁盘默认持久，**数据不会丢**；
-     若日后迁移，记得把该文件一并带走。
+   - **仓库根已有 `render.yaml`，Render 会自动读取其中的构建/启动/环境变量，无需手动填写。**
+     若手动确认：Build Command = `npm install && npm run build && cd server && npm install`，
+     Start Command = `node server/index.js`，Node 版本 20，环境变量 `VITE_USE_REAL_API=true`、`VITE_API_BASE_URL=/api`。
+     ⚠️ **不要手填 `PORT`**，Render 会自动注入正确端口（代码已用 `process.env.PORT`）。
+   - 创建后等待 1–2 分钟构建完成，分配 `xxx.onrender.com` 公网网址。
 
-3. 打开分配的网址即可，所有人都能访问、且共享同一份数据。
+4. **数据持久化（重要！Render 免费版必看）**
+   - ❌ 原以为"Render 磁盘默认持久"是错的。Render 免费 Web Service 的文件系统是**临时的**，
+     每次重新部署或实例重启都会把 `server/data/data.json` 和 `server/uploads/` 清空，
+     真实多人数据会丢（演示/临时可用，正式不行）。
+   - ✅ 可靠做法（任选其一）：
+     - **挂载 Render Disk 持久卷**：在 Render 服务里 Add Persistent Disk，挂载点填
+       `/data`，并把本项目的数据目录指向它（需改 `server/db.js` 里 `data.json` 路径、
+       `server/index.js` 里 `uploads` 路径为 `/data`）。持久卷免费额度够用，重启不丢。
+     - **换外部数据库**：把 JSON 存储换成 Neon/Supabase 等 Postgres（改 `server/db.js` 即可），
+       彻底摆脱本地文件系统，最稳。
+   - 迁移数据时记得把本地 `server/data/data.json` 内容一并带走。
+
+5. 打开分配的网址即可，所有人都能访问、且共享同一份数据。
 
 ### 方案 B：自己的云服务器（阿里云/腾讯云 ECS，国内访问快、可绑域名）
 
