@@ -1,0 +1,78 @@
+// =====================================================
+// 设计令牌 Design Tokens - 师生交互平台
+// 方向：Campus Blue — 学术蓝 + 冷灰底，清晰可信
+// =====================================================
+
+// ---- 颜色系统 ----------------------------------------
+$primary: #2563eb;
+$primary-light: #60a5fa;
+$primary-dark: #1d4ed8;
+
+$success: #16a34a;
+$warning: #d97706;
+$danger: #dc2626;
+$info: #0284c8;
+
+$text-primary: #0f172a;
+$text-secondary: #475569;
+$text-muted: #64748b;
+
+$bg-body: #f1f5f9;
+$bg-card: #ffffff;
+$border-color: #e2e8f0;
+
+// 派生色
+$primary-bg: rgba($primary, 0.1);
+$success-bg: rgba($success, 0.12);
+$warning-bg: rgba($warning, 0.12);
+$danger-bg: rgba($danger, 0.12);
+
+// 品牌渐变（登录/强调）
+$gradient-brand: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
+$gradient-brand-soft: linear-gradient(135deg, rgba(37, 99, 235, 0.92) 0%, rgba(30, 58, 138, 0.95) 100%);
+
+// ---- 间距系统（4px 基准） ----------------------------
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-xxl: 48px;
+
+// ---- 圆角 --------------------------------------------
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+$radius-full: 9999px;
+
+// ---- 阴影 --------------------------------------------
+$shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+$shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08);
+$shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12);
+$shadow-primary: 0 4px 18px rgba(37, 99, 235, 0.28);
+
+// ---- 字体 --------------------------------------------
+$font-family: 'Noto Sans SC', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+$font-size-sm: 12px;
+$font-size-base: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 20px;
+$font-size-2xl: 24px;
+$font-size-3xl: 32px;
+
+// ---- 过渡 --------------------------------------------
+$transition-base: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+$transition-fast: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+
+// ---- 布局 --------------------------------------------
+$page-max-width: 1180px;
+$header-height: 64px;
+$aside-width: 232px;
+$footer-height: 56px;
+
+// ---- 断点 --------------------------------------------
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 960px;
+$breakpoint-xl: 1200px;

@@ -1,0 +1,689 @@
+@use 'sass:color';
+@use './variables.scss' as *;
+
+// =====================================================
+// 全局样式 - 师生交互平台
+// =====================================================
+
+:root {
+  --color-primary: #{$primary};
+  --color-primary-light: #{$primary-light};
+  --color-primary-dark: #{$primary-dark};
+  --color-primary-bg: #{$primary-bg};
+
+  --color-success: #{$success};
+  --color-warning: #{$warning};
+  --color-danger: #{$danger};
+  --color-info: #{$info};
+
+  --color-text-primary: #{$text-primary};
+  --color-text-secondary: #{$text-secondary};
+  --color-text-muted: #{$text-muted};
+
+  --color-bg-body: #{$bg-body};
+  --color-bg-card: #{$bg-card};
+  --color-border: #{$border-color};
+
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-primary: #{$shadow-primary};
+
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+
+  --font-family: #{$font-family};
+  --font-size-base: #{$font-size-base};
+  --transition-base: #{$transition-base};
+
+  --header-height: #{$header-height};
+  --aside-width: #{$aside-width};
+
+  // Element Plus 主题覆盖
+  --el-color-primary: #{$primary};
+  --el-color-primary-light-3: #{$primary-light};
+  --el-color-primary-light-5: #{color.mix(#fff, $primary, 50%)};
+  --el-color-primary-light-7: #{color.mix(#fff, $primary, 70%)};
+  --el-color-primary-light-8: #{color.mix(#fff, $primary, 80%)};
+  --el-color-primary-light-9: #{color.mix(#fff, $primary, 90%)};
+  --el-color-primary-dark-2: #{$primary-dark};
+  --el-color-success: #{$success};
+  --el-color-warning: #{$warning};
+  --el-color-danger: #{$danger};
+  --el-color-info: #{$info};
+  --el-border-radius-base: #{$radius-md};
+  --el-font-family: #{$font-family};
+  --el-text-color-primary: #{$text-primary};
+  --el-text-color-regular: #{$text-secondary};
+  --el-bg-color-page: #{$bg-body};
+  --el-border-color: #{$border-color};
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: $font-family;
+  font-size: $font-size-base;
+  color: $text-primary;
+  background-color: $bg-body;
+  line-height: 1.6;
+}
+
+a {
+  color: $primary;
+  text-decoration: none;
+  transition: $transition-fast;
+
+  &:hover {
+    color: $primary-dark;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, $primary-light 0%, $primary 50%, $primary-dark 100%);
+  border-radius: $radius-full;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+
+  &:hover {
+    background: linear-gradient(180deg, $primary 0%, $primary-dark 100%);
+  }
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: $primary transparent;
+}
+
+// ---- 页面容器 ----------------------------------------
+.page-container {
+  max-width: $page-max-width;
+  margin: 0 auto;
+  padding: $spacing-lg $spacing-lg $spacing-xl;
+
+  @media (max-width: $breakpoint-md) {
+    padding: $spacing-md;
+  }
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+
+  .page-title,
+  h1,
+  h2 {
+    font-size: $font-size-2xl;
+    font-weight: 700;
+    color: $text-primary;
+    letter-spacing: -0.4px;
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  .page-subtitle {
+    font-size: $font-size-base;
+    color: $text-secondary;
+    margin-top: $spacing-xs;
+    max-width: 520px;
+  }
+
+  @media (max-width: $breakpoint-sm) {
+    flex-direction: column;
+    align-items: stretch;
+
+    > .el-button,
+    > .el-button + .el-button {
+      width: 100%;
+    }
+  }
+}
+
+.page-title {
+  font-size: $font-size-2xl;
+  font-weight: 700;
+  color: $text-primary;
+  margin: 0 0 $spacing-lg;
+}
+
+.card-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0 0 $spacing-md;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+
+  .el-icon {
+    color: $primary;
+  }
+}
+
+// ---- 卡片 --------------------------------------------
+.card {
+  background: $bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+  border: 1px solid $border-color;
+  padding: $spacing-lg;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: $shadow-md;
+      border-color: color.mix($primary, $border-color, 18%);
+    }
+  }
+}
+
+.card-lift {
+  @extend .card;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: $shadow-lg;
+      border-color: color.mix($primary, $border-color, 25%);
+    }
+  }
+}
+
+.card-glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: $radius-lg;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: $shadow-sm;
+  padding: $spacing-lg;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: $shadow-md;
+      border-color: rgba(255, 255, 255, 0.45);
+      transform: translateY(-2px);
+    }
+  }
+}
+
+// ---- 工具类 ------------------------------------------
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-start {
+  display: flex;
+  align-items: flex-start;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.gap-xs { gap: $spacing-xs; }
+.gap-sm { gap: $spacing-sm; }
+.gap-md { gap: $spacing-md; }
+.gap-lg { gap: $spacing-lg; }
+
+.text-primary { color: $text-primary; }
+.text-secondary { color: $text-secondary; }
+.text-muted { color: $text-muted; }
+.text-brand { color: $primary; }
+
+.mt-sm { margin-top: $spacing-sm; }
+.mt-md { margin-top: $spacing-md; }
+.mt-lg { margin-top: $spacing-lg; }
+.mb-sm { margin-bottom: $spacing-sm; }
+.mb-md { margin-bottom: $spacing-md; }
+.mb-lg { margin-bottom: $spacing-lg; }
+
+.gradient-text {
+  background: $gradient-brand;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  flex-wrap: wrap;
+  padding: $spacing-md $spacing-lg;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  border: 1px solid $border-color;
+  margin-bottom: $spacing-lg;
+  box-shadow: $shadow-sm;
+
+  @media (max-width: $breakpoint-md) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: $spacing-md;
+
+    .filter-input,
+    .filter-input-md,
+    .filter-select-sm,
+    .filter-select-md,
+    .el-input,
+    .el-select,
+    .el-button {
+      width: 100%;
+    }
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 56px 20px;
+  color: $text-secondary;
+
+  .empty-icon {
+    opacity: 0.35;
+    margin-bottom: $spacing-md;
+    display: block;
+    color: $text-muted;
+  }
+
+  .empty-title {
+    font-size: $font-size-lg;
+    font-weight: 600;
+    margin-bottom: $spacing-sm;
+    color: $text-primary;
+  }
+
+  .empty-desc {
+    font-size: $font-size-base;
+    color: $text-muted;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, color.mix(#000, $bg-body, 2%) 25%, $border-color 50%, color.mix(#000, $bg-body, 2%) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+  border-radius: $radius-sm;
+}
+
+.skeleton-cover {
+  height: 160px;
+  border-radius: $radius-lg $radius-lg 0 0;
+}
+
+.skeleton-body {
+  padding: $spacing-md;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+
+  > * {
+    margin-left: -6px;
+    border: 2px solid $bg-card;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+}
+
+// ---- Element Plus 覆盖 -------------------------------
+.el-button {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease !important;
+
+  &:not(.is-disabled):active {
+    transform: scale(0.97) !important;
+  }
+}
+
+.el-button--primary {
+  --el-button-bg-color: #{$primary};
+  --el-button-border-color: #{$primary};
+  --el-button-hover-bg-color: #{$primary-dark};
+  --el-button-hover-border-color: #{$primary-dark};
+  border-radius: $radius-md !important;
+  padding: $spacing-sm $spacing-lg !important;
+  font-weight: 500;
+  position: relative;
+  overflow: hidden !important;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 35%,
+      rgba(255, 255, 255, 0.38) 50%,
+      rgba(255, 255, 255, 0.08) 65%,
+      transparent 100%
+    );
+    transform: skewX(-18deg);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  &:not(.is-disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: $shadow-primary;
+
+    &::after {
+      opacity: 1;
+      animation: shimmer 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  }
+
+  &:not(.is-disabled):active {
+    transform: scale(0.97) !important;
+  }
+
+  &.el-button--small {
+    padding: $spacing-xs $spacing-md !important;
+  }
+}
+
+@keyframes shimmer {
+  0% { left: -120%; }
+  100% { left: 140%; }
+}
+
+.el-button--default {
+  border-radius: $radius-md !important;
+
+  &:not(.is-disabled):hover {
+    border-color: $primary;
+    color: $primary;
+  }
+}
+
+.el-input__wrapper {
+  border-radius: $radius-md !important;
+  box-shadow: 0 0 0 1px $border-color inset !important;
+  transition: box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+
+  &:hover {
+    box-shadow: 0 0 0 1px color.mix($primary, $border-color, 40%) inset !important;
+  }
+
+  &.is-focus {
+    box-shadow: 0 0 0 1px $primary inset, 0 0 0 2px rgba($primary, 0.18) !important;
+  }
+}
+
+.el-form-item__label {
+  font-size: $font-size-base !important;
+  color: $text-secondary !important;
+}
+
+.el-select .el-select__wrapper {
+  border-radius: $radius-md !important;
+}
+
+.el-card {
+  border-radius: $radius-lg !important;
+  border: 1px solid $border-color !important;
+  box-shadow: $shadow-sm !important;
+}
+
+.el-tag {
+  border-radius: $radius-full !important;
+  font-weight: 500 !important;
+}
+
+.el-pagination {
+  margin-top: $spacing-lg;
+  justify-content: center;
+}
+
+.el-dialog {
+  border-radius: $radius-xl !important;
+  box-shadow: $shadow-lg !important;
+
+  .el-dialog__header {
+    border-bottom: 1px solid $border-color;
+    padding: 20px $spacing-lg;
+    margin-right: 0;
+  }
+
+  .el-dialog__body {
+    padding: $spacing-lg;
+  }
+
+  .el-dialog__footer {
+    border-top: 1px solid $border-color;
+    padding: $spacing-md $spacing-lg;
+  }
+}
+
+.el-table {
+  --el-table-border-color: transparent;
+  --el-table-header-bg-color: #{$bg-body};
+  --el-table-row-hover-bg-color: #{$bg-body};
+  border: none !important;
+  border-radius: $radius-lg !important;
+  overflow: hidden;
+  width: 100%;
+
+  &::before,
+  &::after,
+  .el-table__inner-wrapper::before {
+    display: none !important;
+  }
+
+  .el-table__header th {
+    background: $bg-body !important;
+    color: $text-secondary !important;
+    font-weight: 600;
+    border-bottom: none !important;
+    padding: $spacing-sm $spacing-md !important;
+  }
+
+  .el-table__body td {
+    border-bottom: 1px solid $border-color !important;
+    padding: $spacing-sm $spacing-md !important;
+  }
+
+  .el-table__body tr:hover > td {
+    background: $bg-body !important;
+  }
+
+  .el-table__empty-block {
+    background: transparent;
+  }
+}
+
+// ---- 图表容器 ----------------------------------------
+.chart-card {
+  @extend .card-glass;
+
+  .chart-title {
+    font-size: $font-size-lg;
+    font-weight: 600;
+    color: $text-primary;
+    text-align: center;
+    margin: 0 0 $spacing-md;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $spacing-sm;
+
+    .el-icon {
+      color: $primary;
+    }
+  }
+
+  .chart-area {
+    height: 300px;
+    width: 100%;
+  }
+}
+
+// ---- 筛选控件宽度工具类 --------------------------------
+.filter-input { width: 260px; max-width: 100%; }
+.filter-input-md { width: 240px; max-width: 100%; }
+.filter-select-sm { width: 140px; max-width: 100%; }
+.filter-select-md { width: 160px; max-width: 100%; }
+.w-full { width: 100%; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: $spacing-lg;
+
+  @media (max-width: $breakpoint-sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.el-menu-item.is-active {
+  color: $primary !important;
+}
+
+// ---- 路由 / 页面过渡（0.3s，含轻微缩放） --------------
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+// ---- 下拉菜单微交互 ------------------------------------
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.message-dropdown-popper.el-popper,
+.header-dropdown-popper.el-popper {
+  animation: dropdownIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-lift:hover,
+  .card:hover,
+  .card-glass:hover {
+    transform: none !important;
+  }
+
+  .el-button--primary::after {
+    display: none !important;
+  }
+}
