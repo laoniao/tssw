@@ -232,6 +232,7 @@ const logout = async () => {
       cancelButtonText: '取消',
       type: 'warning',
     })
+    messageStore.clearMessages()
     userStore.logout()
     ElMessage.success('已退出登录')
     router.push('/login')

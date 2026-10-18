@@ -5,8 +5,8 @@ server/node_modules/
 # 构建产物（部署时由 Render 重新构建，无需提交）
 dist/
 
-# 运行时数据（含真实用户数据，不要提交；首次启动自动生成种子）
-server/data/data.json
+# 运行时数据（含真实用户数据与备份，不要提交；首次启动会自动生成种子）
+server/data/
 server/uploads/
 
 # 本地环境变量覆盖（保留 .env.production 作为部署配置一并提交）

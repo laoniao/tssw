@@ -29,10 +29,3 @@ export function add(workId, content, parentId) {
   })
 }
 
-// 评论点赞（可选）
-export function likeComment(commentId) {
-  return request({
-    url: `/comments/${commentId}/like`,
-    method: 'post',
-  })
-}

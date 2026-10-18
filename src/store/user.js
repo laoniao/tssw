@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   // 用户信息
@@ -13,9 +13,6 @@ export const useUserStore = defineStore('user', () => {
     major: '',
     bio: '',
   })
-
-  // 是否已登录
-  const isLoggedIn = computed(() => !!token.value)
 
   // 设置用户信息（以本次登录/注册信息为准，不沿用上一账号资料）
   const setUserInfo = (info) => {
@@ -62,13 +59,6 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('role')
   }
 
-  // 更新用户信息
-  const updateUserInfo = (updates) => {
-    if (userInfo.value) {
-      userInfo.value = { ...userInfo.value, ...updates }
-    }
-  }
-
   // 更新个人资料，并同步到 userInfo
   const updateProfile = (data) => {
     profile.value = { ...profile.value, ...data }
@@ -87,12 +77,10 @@ export const useUserStore = defineStore('user', () => {
     token,
     role,
     profile,
-    isLoggedIn,
     setUserInfo,
     setToken,
     setRole,
     logout,
-    updateUserInfo,
     updateProfile,
   }
 }, {

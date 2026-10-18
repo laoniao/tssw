@@ -118,17 +118,22 @@
             v-model="form.teacherIds"
             multiple
             filterable
+            collapse-tags
+            collapse-tags-tooltip
+            popper-class="leader-teacher-popper"
             placeholder="选择本场比赛可由哪些带队老师带领"
-            class="w-full"
+            class="w-full leader-teacher-select"
           >
             <el-option
               v-for="t in leaderTeachers"
               :key="t.id"
-              :label="`${t.name}${t.department ? ' · ' + t.department : ''}`"
+              :label="`${t.name}（${t.teacherId}）· ${t.title || '带队教师'}${t.department ? ' · ' + t.department : ''}`"
               :value="t.id"
             />
           </el-select>
-          <div class="field-hint block">仅管理员可配置；带队老师本人不能自行选择可带领的比赛</div>
+          <div class="field-hint block">
+            列表来自真实教师账号（共 {{ leaderTeachers.length || 0 }} 位教师，均可被指派带队）；仅管理员可配置
+          </div>
         </el-form-item>
         <el-form-item label="比赛简介" prop="description">
           <el-input
@@ -253,22 +258,6 @@ const openPublishDialog = (comp = null) => {
   dialogVisible.value = true
 }
 
-const buildTeachersPayload = () => {
-  const ids = form.value.teacherIds || []
-  return ids
-    .map((id) => leaderTeachers.value.find((t) => String(t.id) === String(id)))
-    .filter(Boolean)
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      title: t.title || '带队教师',
-      department: t.department || '',
-      avatar: t.avatar,
-      maxStudents: t.maxStudents || 20,
-      currentStudents: t.currentStudents || 0,
-    }))
-}
-
 const handleSubmit = async () => {
   if (formRef.value) {
     try { await formRef.value.validate() } catch { return }
@@ -279,9 +268,10 @@ const handleSubmit = async () => {
       ...form.value,
       startTime: form.value.dateRange?.[0],
       endTime: form.value.dateRange?.[1],
-      teachers: buildTeachersPayload(),
+      // 只提交带队老师账号 id，展示信息由后端按真实账号解析，老师改名/换院系自动同步
+      teacherIds: (form.value.teacherIds || []).map(String),
     }
-    delete payload.teacherIds
+    delete payload.teachers
     delete payload.dateRange
     if (isEdit.value) {
       await editCompetition(form.value.id, payload)
@@ -299,17 +289,33 @@ const handleSubmit = async () => {
 
 const toggleStatus = async (comp) => {
   const action = comp.status === '已结束' ? '重新发布' : '下架'
-  await ElMessageBox.confirm(`确定要${action}「${comp.name}」吗？`, '确认操作', { type: 'warning' })
-  await offlineCompetition(comp.id)
-  ElMessage.success(`已${action}`)
-  await fetchList()
+  try {
+    await ElMessageBox.confirm(`确定要${action}「${comp.name}」吗？`, '确认操作', { type: 'warning' })
+  } catch {
+    return // 用户点了取消
+  }
+  try {
+    await offlineCompetition(comp.id)
+    ElMessage.success(`已${action}`)
+    await fetchList()
+  } catch (e) {
+    ElMessage.error(e.message || '操作失败')
+  }
 }
 
 const deleteComp = async (comp) => {
-  await ElMessageBox.confirm(`确定要删除「${comp.name}」吗？此操作不可恢复`, '删除确认', { type: 'danger' })
-  await deleteCompetition(comp.id)
-  ElMessage.success('已删除')
-  await fetchList()
+  try {
+    await ElMessageBox.confirm(`确定要删除「${comp.name}」吗？此操作不可恢复`, '删除确认', { type: 'danger' })
+  } catch {
+    return // 用户点了取消
+  }
+  try {
+    await deleteCompetition(comp.id)
+    ElMessage.success('已删除')
+    await fetchList()
+  } catch (e) {
+    ElMessage.error(e.message || '删除失败')
+  }
 }
 
 const formatDate = (dt) => String(dt || '').slice(0, 10)
@@ -415,6 +421,30 @@ const getStatusType = (s) => ({ '报名中': 'success', '进行中': 'warning', 
     display: block;
     margin-left: 0;
     margin-top: 6px;
+  }
+}
+
+// 可带队老师：已选标签过多时在选择框内滚动
+.leader-teacher-select {
+  :deep(.el-select__wrapper) {
+    max-height: 96px;
+    overflow-y: auto;
+  }
+}
+</style>
+
+<!-- 下拉浮层挂在 body 上，需要非 scoped 样式 -->
+<style lang="scss">
+.leader-teacher-popper {
+  .el-select-dropdown__wrap {
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .el-select-dropdown__item {
+    height: auto;
+    line-height: 1.5;
+    padding: 6px 12px;
   }
 }
 </style>

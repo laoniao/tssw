@@ -65,6 +65,7 @@
 <script setup>
 import { ElMessage } from 'element-plus'
 import { upload } from '@/api/resource'
+import { uploadFile } from '@/api'
 
 defineProps({
   modelValue: {
@@ -90,6 +91,7 @@ const form = reactive({
   description: '',
   fileName: '',
   fileSize: 0,
+  url: '',
 })
 
 const rules = {
@@ -114,7 +116,8 @@ const clearTimer = () => {
   }
 }
 
-const customUpload = (options) => {
+// 真正把文件上传到后端（此前只伪造进度条，文件从未落盘）
+const customUpload = async (options) => {
   const file = options.file
   selectedFile.value = file
   form.fileName = file.name
@@ -128,14 +131,24 @@ const customUpload = (options) => {
   progress.value = 0
   clearTimer()
 
-  uploadTimer.value = setInterval(() => {
-    if (progress.value >= 100) {
-      clearTimer()
-      options.onSuccess?.({ name: file.name })
-      return
-    }
-    progress.value = Math.min(100, progress.value + 10)
-  }, 200)
+  try {
+    const res = await uploadFile(file, (p) => {
+      progress.value = Math.min(100, p)
+    })
+    form.url = res.data?.url || ''
+    if (!form.url) throw new Error('上传返回地址为空')
+    progress.value = 100
+    options.onSuccess?.({ name: file.name, url: form.url })
+  } catch (e) {
+    progress.value = 0
+    progressVisible.value = false
+    selectedFile.value = null
+    form.fileName = ''
+    form.fileSize = 0
+    form.url = ''
+    options.onError?.(e)
+    ElMessage.error(e.message || '文件上传失败')
+  }
 }
 
 const handleRemove = () => {
@@ -143,6 +156,7 @@ const handleRemove = () => {
   selectedFile.value = null
   form.fileName = ''
   form.fileSize = 0
+  form.url = ''
   progress.value = 0
   progressVisible.value = false
 }
@@ -159,6 +173,7 @@ const resetForm = () => {
     description: '',
     fileName: '',
     fileSize: 0,
+    url: '',
   })
   formRef.value?.resetFields?.()
 }
@@ -180,6 +195,11 @@ const handleSubmit = async () => {
     return
   }
 
+  if (!form.url) {
+    ElMessage.warning('文件尚未上传成功，请重新选择文件')
+    return
+  }
+
   submitting.value = true
   try {
     const res = await upload({
@@ -189,6 +209,7 @@ const handleSubmit = async () => {
       category: form.type,
       fileSize: form.fileSize,
       fileName: form.fileName,
+      url: form.url,
     })
     ElMessage.success('资源上传成功')
     emit('success', res.data)

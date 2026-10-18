@@ -53,7 +53,7 @@ function publicUser(u) {
   if (u.role === 'student') {
     return { ...base, role: 'student', studentId: u.accountId || u.username, major: u.major || '', grade: u.grade || '', gender: u.gender || '', bio: u.bio || '', phone: u.phone || '' }
   }
-  return { ...base, role: 'teacher', teacherId: u.accountId || u.username, teacherType: u.teacherType || 'leader', title: u.title || '带队教师', department: u.department || '' }
+  return { ...base, role: 'teacher', teacherId: u.accountId || u.username, teacherType: u.teacherType || 'leader', title: u.title || '带队教师', department: u.department || '', gender: u.gender || '' }
 }
 
 function genToken(userId) {
@@ -81,11 +81,51 @@ function isTeamParticipant(team, user) {
   return false
 }
 
-const BUILTIN_LEAD_TEACHERS = [
-  { id: 't1', name: '王老师', title: '带队教师', department: '自动化', avatar: DEFAULT_AVATAR_URL, maxStudents: 15, currentStudents: 0 },
-  { id: 't3', name: '赵老师', title: '带队教师', department: '电气工程', avatar: DEFAULT_AVATAR_URL, maxStudents: 12, currentStudents: 0 },
-  { id: 't4', name: '陈老师', title: '带队教师', department: '建筑电气', avatar: DEFAULT_AVATAR_URL, maxStudents: 10, currentStudents: 0 },
-]
+// ---------- 带队老师池（全部来自真实教师账号：内置账号 + 注册账号） ----------
+// 用 accountId（工号）作为老师的稳定标识，与学生端选择的 team.leaderTeachers[].id 直接对应
+function toTeacherView(u) {
+  return {
+    id: u.accountId || u.id,
+    name: u.name,
+    title: u.title || '带队教师',
+    department: u.department || '',
+    avatar: u.avatar || DEFAULT_AVATAR_URL,
+    username: u.username || '',
+    teacherId: u.accountId || u.username || '',
+    maxStudents: 20,
+    currentStudents: 0,
+  }
+}
+// 可作为带队老师的账号：全部真实教师账号（管理员账号本身也是教师，同样可被指派带队）
+function leadTeacherPool() {
+  const db = getDB()
+  return [...db.accounts, ...db.registeredUsers].filter((u) => u.role === 'teacher').map(toTeacherView)
+}
+// 全部教师账号（指导分配等场景）
+function allTeacherPool() {
+  const db = getDB()
+  return [...db.accounts, ...db.registeredUsers].filter((u) => u.role === 'teacher').map(toTeacherView)
+}
+// 比赛上的带队老师改为只存 teacherIds，读取时按真实账号实时解析
+function resolveTeachers(comp) {
+  const pool = allTeacherPool()
+  const ids = Array.isArray(comp?.teacherIds) ? comp.teacherIds : null
+  if (ids) {
+    return ids
+      .map((id) => pool.find((t) => String(t.id) === String(id)))
+      .filter(Boolean)
+  }
+  // 兼容历史数据：按 id 或姓名回填为真实账号
+  return (comp?.teachers || []).map((t) => {
+    const real = pool.find((r) => String(r.id) === String(t.id)) || pool.find((r) => r.name === t.name)
+    return real ? { ...real, maxStudents: t.maxStudents || 20, currentStudents: t.currentStudents || 0 } : t
+  })
+}
+// 统一输出比赛（附带实时解析出的带队老师）
+function withTeachers(comp) {
+  if (!comp) return comp
+  return { ...comp, teachers: resolveTeachers(comp) }
+}
 
 // 写入一条消息（通知）
 function pushMessage({ type = 'system', typeLabel, title, content, role = 'student', userId = '', userName = '' }) {
@@ -109,14 +149,31 @@ function notifyLeadTeachers(teachers, { title, content }) {
   ;(teachers || []).forEach((t) => pushMessage({ type: 'review', typeLabel: '审核提醒', title, content, role: 'teacher', userId: t.id || '', userName: t.name || '' }))
 }
 
+// 判断一条消息是否属于某个用户
+// 规则：1) 有明确收件人的消息，必须按 userId(工号/账号 id/用户名) 或姓名精确命中；
+//      2) 只有「系统通知」这类无收件人的消息才允许广播给所有人；
+//      3) 审核结果 / 审核提醒 / 组队邀请一律不允许广播，避免所有老师共用一套消息。
+function messageTargetsUser(item, user) {
+  if (!item || !user) return false
+  if (item.role && item.role !== user.role) return false
+  const hasTarget = item.userId || item.userName
+  if (!hasTarget) return item.type === 'system'
+  const keys = [user.id, user.accountId, user.username].filter(Boolean).map(String)
+  if (item.userId && keys.includes(String(item.userId))) return true
+  if (item.userName && String(item.userName) === String(user.name || '')) return true
+  return false
+}
+
 // ==================== 学生端 ====================
 
 // 学生登录
 app.post('/api/student/login', (req, res) => {
   const { username, password } = req.body || {}
   const db = getDB()
-  const acc = [...db.accounts, ...db.registeredUsers].find((u) => u.role === 'student' && u.username === username && u.password === password)
-  if (!acc) return res.json(fail(401, '用户名或密码错误'))
+  const allStudents = [...db.accounts, ...db.registeredUsers].filter((u) => u.role === 'student')
+  const acc = allStudents.find((u) => u.username === username || u.accountId === username)
+  if (!acc) return res.json(fail(401, '账号不存在，请检查学号或先注册'))
+  if (acc.password !== password) return res.json(fail(401, '密码错误，请重新输入'))
   res.json(ok({ token: genToken(acc.id), userInfo: publicUser(acc) }))
 })
 
@@ -124,11 +181,17 @@ app.post('/api/student/login', (req, res) => {
 app.post('/api/student/register', (req, res) => {
   const { username, password, name, major, grade, gender, email } = req.body || {}
   const db = getDB()
-  if ([...db.accounts, ...db.registeredUsers].some((u) => u.role === 'student' && u.username === username)) {
-    return res.json(fail(400, '该学号已注册'))
+  // 学号（username）全局唯一：不能与任何学生/教师账号相同，也不能与内置账号 accountId 冲突
+  const conflict = [...db.accounts, ...db.registeredUsers].find(
+    (u) => u.username === username || u.accountId === username,
+  )
+  if (conflict) return res.json(fail(400, '该学号已被占用，请更换'))
+  // 学号不能与系统保留账号的学号冲突
+  if ([...db.accounts, ...db.registeredUsers].some((u) => u.role === 'student' && u.accountId === username)) {
+    return res.json(fail(400, '该学号已被占用，请更换'))
   }
   const id = `s_${Date.now()}`
-  const user = { id, role: 'student', username, password, name, major, grade, gender, email: email || '', system: false, avatar: DEFAULT_AVATAR_URL }
+  const user = { id, role: 'student', username, accountId: username, password, name, major, grade, gender, email: email || '', system: false, avatar: DEFAULT_AVATAR_URL }
   db.registeredUsers.push(user)
   saveDB()
   res.json(ok({ token: genToken(id), userInfo: publicUser(user) }))
@@ -136,41 +199,15 @@ app.post('/api/student/register', (req, res) => {
 
 // 比赛列表 / 详情
 app.get('/api/competitions', (req, res) => {
-  res.json(ok({ list: getDB().competitions }))
+  res.json(ok({ list: getDB().competitions.map(withTeachers) }))
 })
 app.get('/api/competitions/:id', (req, res) => {
   const list = getDB().competitions
   const comp = list.find((c) => String(c.id) === String(req.params.id)) || list[0] || null
-  res.json(ok(comp))
+  res.json(ok(withTeachers(comp)))
 })
 
-// 旧个人报名
-app.post('/api/competitions/register', (req, res) => {
-  const db = getDB()
-  const body = req.body || {}
-  const comp = db.competitions.find((c) => String(c.id) === String(body.competitionId || body.id))
-  if (!comp) return res.json(fail(404, '比赛不存在'))
-  if (comp.status === '已结束') return res.json(fail(400, '比赛已结束，无法报名'))
-  const user = requireUser(req, res)
-  if (!user) return
-  const exists = db.applications.find((a) => String(a.competition?.id) === String(comp.id) && a.student?.studentId === (user.accountId || user.username))
-  if (exists) return res.json(fail(400, '您已报名该比赛'))
-  const teacher = (comp.teachers || []).find((t) => String(t.id) === String(body.teacherId)) || (comp.teachers || [])[0]
-  db.applications.unshift({
-    id: nextId('applications'),
-    student: { id: user.id, name: user.name, studentId: user.accountId || user.username, major: user.major || '', grade: user.grade || '', gender: user.gender || '', avatar: user.avatar || DEFAULT_AVATAR_URL },
-    competition: { id: comp.id, name: comp.name },
-    teacherId: teacher?.id || '',
-    status: '待审核',
-    applyTime: formatDateTime(new Date()),
-    reason: body.reason || '申请参赛',
-  })
-  comp.participantCount = (comp.participantCount || 0) + 1
-  saveDB()
-  res.json(ok({ success: true }))
-})
-
-// 队伍报名（新流程）
+// 队伍报名（唯一报名入口：由队长为学生队伍申请带队老师，带队老师审核）
 app.post('/api/competitions/team-register', (req, res) => {
   const db = getDB()
   const body = req.body || {}
@@ -192,7 +229,7 @@ app.post('/api/competitions/team-register', (req, res) => {
   teacherIds = [...new Set(teacherIds.map(String))].filter(Boolean)
   if (!teacherIds.length) return res.json(fail(400, '请选择带队老师'))
   if (teacherIds.length > (Number(comp.maxLeadTeachers) || 1)) return res.json(fail(400, `每支队伍最多可选 ${Number(comp.maxLeadTeachers) || 1} 位带队老师`))
-  const available = comp.teachers || []
+  const available = resolveTeachers(comp)
   const selected = teacherIds.map((tid) => available.find((t) => String(t.id) === String(tid))).filter(Boolean)
   if (selected.length !== teacherIds.length) return res.json(fail(400, '所选带队老师不在本场比赛可选范围内'))
   team.competitionId = competitionId
@@ -207,11 +244,38 @@ app.post('/api/competitions/team-register', (req, res) => {
 })
 
 // 作品
-app.get('/api/works', (req, res) => res.json(ok({ list: getDB().works })))
+app.get('/api/works', (req, res) => {
+  const user = getUserFromToken(req)
+  const uid = user ? String(user.id || user.accountId || '') : ''
+  const list = getDB().works.map((w) => {
+    const { likedBy, ...rest } = w
+    const list2 = Array.isArray(likedBy) ? likedBy : []
+    return { ...rest, liked: uid ? list2.includes(uid) : false }
+  })
+  res.json(ok({ list }))
+})
+// 点赞 = 切换（同一用户再点一次即取消），不再只增不减
 app.post('/api/works/:id/like', (req, res) => {
-  const work = getDB().works.find((w) => String(w.id) === String(req.params.id))
-  if (work) { work.likes = (work.likes || 0) + 1; saveDB() }
-  res.json(ok({ workId: Number(req.params.id), liked: true, likes: work?.likes || 0 }))
+  const db = getDB()
+  const work = db.works.find((w) => String(w.id) === String(req.params.id))
+  if (!work) return res.json(fail(404, '作品不存在'))
+  const user = requireUser(req, res)
+  if (!user) return
+  const uid = String(user.id || user.accountId || '')
+  work.likedBy = Array.isArray(work.likedBy) ? work.likedBy : []
+  const idx = work.likedBy.indexOf(uid)
+  let liked
+  if (idx > -1) {
+    work.likedBy.splice(idx, 1)
+    work.likes = Math.max(0, (work.likes || 0) - 1)
+    liked = false
+  } else {
+    work.likedBy.push(uid)
+    work.likes = (work.likes || 0) + 1
+    liked = true
+  }
+  saveDB()
+  res.json(ok({ workId: Number(work.id), liked, likes: work.likes }))
 })
 app.get('/api/works/:id/comments', (req, res) => {
   const list = (getDB().works.find((w) => String(w.id) === String(req.params.id))?.commentList) || []
@@ -236,7 +300,6 @@ app.post('/api/works/:id/comments', (req, res) => {
   saveDB()
   res.json(ok({ comment: newComment, list: work.commentList, total: countComments(work.commentList) }, '评论成功'))
 })
-app.post('/api/comments/:id/like', (req, res) => res.json(ok({ success: true })))
 
 function countComments(list) { return list.reduce((s, i) => s + 1 + countComments(i.children || []), 0) }
 function findComment(list, id) {
@@ -247,9 +310,6 @@ function findComment(list, id) {
   return null
 }
 
-// 智能推荐（静态）
-app.get('/api/recommendations', (req, res) => res.json(ok(getDB().recommendations || { recommendedTeachers: { list: [] }, recommendedTeammates: { list: [] } })))
-
 // 个人中心
 app.get('/api/student/profile', (req, res) => {
   const user = requireUser(req, res)
@@ -258,12 +318,10 @@ app.get('/api/student/profile', (req, res) => {
   const studentId = user.accountId || user.username
   const myApps = db.applications.filter((a) => (a.student?.studentId || '') === studentId)
   const competitionHistory = {
-    list: myApps.length
-      ? myApps.map((a) => ({ id: a.id, name: a.competition?.name || '未知比赛', status: a.status || '待审核', year: (a.applyTime || '').slice(0, 4) || '-', teamName: a.teamName || '-' }))
-      : [{ id: 1, name: '程序设计校内选拔赛', status: '二等奖', year: '2025', teamName: '算法突击队' }],
+    list: myApps.map((a) => ({ id: a.id, name: a.competition?.name || '未知比赛', status: a.status || '待审核', year: (a.applyTime || '').slice(0, 4) || '-', teamName: a.teamName || '-' })),
   }
   const teacherPool = [
-    ...BUILTIN_LEAD_TEACHERS.map((t) => ({ ...t })),
+    ...leadTeacherPool(),
     ...db.registeredUsers.filter((u) => u.role === 'teacher').map((u) => ({ id: u.id, name: u.name, title: u.title || '带队教师', department: u.department || '', avatar: u.avatar || DEFAULT_AVATAR_URL })),
   ]
   const teacherMap = new Map()
@@ -273,25 +331,28 @@ app.get('/api/student/profile', (req, res) => {
       if (t && !teacherMap.has(String(t.id))) teacherMap.set(String(t.id), { id: t.id, name: t.name, title: t.title, department: t.department, avatar: t.avatar })
     }
   })
-  const myTeachers = { list: teacherMap.size ? [...teacherMap.values()] : [{ id: 't2', name: '李老师', title: '管理员', department: '计算机', avatar: DEFAULT_AVATAR_URL }] }
+  const myTeachers = { list: [...teacherMap.values()] }
   const myTeams = db.teams.filter((t) => t.leader?.name === user.name || (t.members || []).some((m) => m.name === user.name))
   res.json(ok({ userInfo: publicUser(user), competitionHistory, myTeams, myTeachers }))
 })
 
-app.put('/api/student/profile', (req, res) => {
+app.put('/api/profile', (req, res) => { updateProfileHandler(req, res) })
+
+function updateProfileHandler(req, res) {
   const user = requireUser(req, res)
   if (!user) return
   const db = getDB()
   const acc = [...db.accounts, ...db.registeredUsers].find((u) => u.id === user.id)
   if (acc) {
-    if (req.body?.nickname) { acc.name = req.body.nickname; acc.username = req.body.nickname }
+    if (req.body?.nickname) acc.name = req.body.nickname
     if (req.body?.major) acc.major = req.body.major
+    if (req.body?.gender !== undefined) acc.gender = req.body.gender
     if (req.body?.bio !== undefined) acc.bio = req.body.bio
     if (req.body?.avatar) acc.avatar = req.body.avatar
     saveDB()
   }
-  res.json(ok({ avatar: acc?.avatar || '', nickname: acc?.name || '', major: acc?.major || '', bio: acc?.bio || '' }, '资料更新成功'))
-})
+  res.json(ok({ avatar: acc?.avatar || '', nickname: acc?.name || '', major: acc?.major || '', gender: acc?.gender || '', bio: acc?.bio || '' }, '资料更新成功'))
+}
 
 app.get('/api/profile/majors', (req, res) => res.json(ok({ list: ['计算机科学与技术', '人工智能', '建筑电气与智能化', '自动化', '电气工程及其自动化'] })))
 
@@ -323,22 +384,7 @@ app.post('/api/teams', (req, res) => {
   saveDB()
   res.json(ok(team))
 })
-app.post('/api/teams/:id/join', (req, res) => {
-  const db = getDB()
-  const team = findTeamById(db.teams, req.params.id)
-  if (!team) return res.json(fail(404, '队伍不存在'))
-  if (team.status === '已满员' || team.currentMembers >= team.maxMembers) return res.json(fail(400, '队伍已满员'))
-  const user = requireUser(req, res)
-  if (!user) return
-  team.members = team.members || []
-  if (![team.leader?.name, ...team.members.map((m) => m.name)].includes(user.name)) {
-    team.members.push({ id: user.id, name: user.name, avatar: user.avatar || DEFAULT_AVATAR_URL })
-    team.currentMembers = 1 + team.members.length
-    if (team.currentMembers >= team.maxMembers) team.status = '已满员'
-    saveDB()
-  }
-  res.json(ok({ success: true, team }))
-})
+// 入队统一走 POST /api/teams/apply（队长审核），不再提供直接入队接口
 app.get('/api/my-teams', (req, res) => {
   const user = requireUser(req, res)
   if (!user) return
@@ -362,13 +408,35 @@ app.get('/api/teams/invite-detail', (req, res) => {
 app.post('/api/teams/apply', (req, res) => {
   const db = getDB()
   const body = req.body || {}
-  const team = body.inviteCode ? findTeamByCode(body.inviteCode) : findTeamById(db.teams, body.teamId)
-  if (!team) return res.json(fail(404, '队伍不存在'))
+  // 兼容前端两种传法：邀请码用 code / inviteCode，直接申请用 teamId
+  const inviteCode = body.inviteCode || body.code || ''
+  const team = inviteCode ? findTeamByCode(inviteCode) : findTeamById(db.teams, body.teamId)
+  if (!team) return res.json(fail(404, inviteCode ? '邀请码无效' : '队伍不存在'))
   const user = requireUser(req, res)
   if (!user) return
-  const item = { id: nextId('teamApplications'), teamId: team.id, teamName: team.name, inviteCode: team.inviteCode, applicantName: user.name, applicantAvatar: user.avatar || DEFAULT_AVATAR_URL, applicantMajor: user.major || '', applyTime: formatDateTime(new Date()), status: '待审核', remark: body.remark || '', isMine: true }
+  if (team.leader?.name === user.name || (team.members || []).some((m) => m.name === user.name)) {
+    return res.json(fail(400, '您已是该队伍成员'))
+  }
+  if ((team.members || []).length + 1 >= (team.maxMembers || 9)) {
+    return res.json(fail(400, '队伍已满员'))
+  }
+  const pending = db.teamApplications.find((a) => String(a.teamId) === String(team.id) && a.applicantName === user.name && a.status === '待审核')
+  if (pending) return res.json(fail(400, '您已提交过申请，请等待队长审核'))
+  const item = { id: nextId('teamApplications'), teamId: team.id, teamName: team.name, inviteCode: team.inviteCode, applicantName: user.name, applicantAvatar: user.avatar || DEFAULT_AVATAR_URL, applicantMajor: user.major || '', applyTime: formatDateTime(new Date()), status: '待审核', remark: body.remark || '' }
   db.teamApplications.unshift(item)
   saveDB()
+  // 定向通知队长（不广播），队长可在「组队中心 - 队伍审核」处理
+  if (team.leader?.name) {
+    pushMessage({
+      type: 'invite',
+      typeLabel: '入队申请',
+      title: '收到入队申请',
+      content: `「${user.name}」申请加入您的队伍「${team.name}」，请前往组队中心审核。`,
+      role: 'student',
+      userId: team.leader.id || '',
+      userName: team.leader.name || '',
+    })
+  }
   res.json(ok(item))
 })
 app.get('/api/teams/:id/applications', (req, res) => {
@@ -378,7 +446,11 @@ app.post('/api/teams/applications/audit', (req, res) => {
   const db = getDB()
   const row = db.teamApplications.find((a) => String(a.id) === String(req.body?.id))
   if (!row) return res.json(fail(404, '申请不存在'))
-  const status = req.body?.status || (req.body?.action === 'reject' || req.body?.pass === false ? '已拒绝' : '已通过')
+  const b = req.body || {}
+  const wantReject = b.action === 'reject' || b.action === 'refuse' || b.status === '已拒绝' || b.status === 'reject' || b.pass === false
+  const wantPass = b.action === 'pass' || b.action === 'approve' || b.status === '已通过' || b.status === 'pass' || b.pass === true
+  if (!wantReject && !wantPass) return res.json(fail(400, '缺少审核结果，请指定 action=pass 或 action=reject'))
+  const status = wantReject ? '已拒绝' : '已通过'
   row.status = status
   if (status === '已通过') {
     const team = findTeamById(db.teams, row.teamId)
@@ -398,7 +470,7 @@ app.post('/api/teams/applications/audit', (req, res) => {
 app.get('/api/teams/my-applications', (req, res) => {
   const user = requireUser(req, res)
   if (!user) return
-  const list = getDB().teamApplications.filter((a) => a.isMine || a.applicantName === user.name)
+  const list = getDB().teamApplications.filter((a) => a.applicantName === user.name)
   res.json(ok({ list }))
 })
 
@@ -441,23 +513,33 @@ app.post('/api/teams/:id/messages', (req, res) => {
 app.post('/api/teacher/login', (req, res) => {
   const { username, password } = req.body || {}
   const db = getDB()
-  const acc = [...db.accounts, ...db.registeredUsers].find((u) => u.role === 'teacher' && u.username === username && u.password === password)
-  if (!acc) return res.json(fail(401, '用户名或密码错误'))
+  const allTeachers = [...db.accounts, ...db.registeredUsers].filter((u) => u.role === 'teacher')
+  const acc = allTeachers.find((u) => u.username === username || u.accountId === username)
+  if (!acc) return res.json(fail(401, '账号不存在，请检查工号或先注册'))
+  if (acc.password !== password) return res.json(fail(401, '密码错误，请重新输入'))
   res.json(ok({ token: genToken(acc.id), userInfo: publicUser(acc) }))
 })
 app.post('/api/teacher/register', (req, res) => {
-  const { username, password, name, email } = req.body || {}
+  const { username, password, name, email, gender } = req.body || {}
   const db = getDB()
-  if (['admin', 'teacher', 'leader', 'student'].includes(username)) return res.json(fail(400, '该工号为系统保留账号'))
-  if ([...db.accounts, ...db.registeredUsers].some((u) => u.role === 'teacher' && u.username === username)) return res.json(fail(400, '该工号已注册'))
+  if ((getDB().accounts || []).some((a) => a.username === username || a.accountId === username)) return res.json(fail(400, '该工号为系统保留账号'))
+  // 工号（username）全局唯一：不能与任何学生/教师账号相同，也不能与内置账号 accountId 冲突
+  const conflict = [...db.accounts, ...db.registeredUsers].find(
+    (u) => u.username === username || u.accountId === username,
+  )
+  if (conflict) return res.json(fail(400, '该工号已被占用，请更换'))
+  // 同时不能与任何学生的学号冲突
+  if ([...db.accounts, ...db.registeredUsers].some((u) => u.role === 'student' && u.accountId === username)) {
+    return res.json(fail(400, '该工号已被占用，请更换'))
+  }
   const id = `t_${Date.now()}`
-  const user = { id, role: 'teacher', username, password, name, email: email || '', teacherType: 'leader', title: '带队教师', department: '', system: false, avatar: DEFAULT_AVATAR_URL }
+  const user = { id, role: 'teacher', username, accountId: username, password, name, email: email || '', gender: gender || '', teacherType: 'leader', title: '带队教师', system: false, avatar: DEFAULT_AVATAR_URL }
   db.registeredUsers.push(user)
   saveDB()
   res.json(ok({ token: genToken(id), userInfo: publicUser(user) }))
 })
 
-app.get('/api/teacher/competitions', (req, res) => res.json(ok({ list: getDB().competitions })))
+app.get('/api/teacher/competitions', (req, res) => res.json(ok({ list: getDB().competitions.map(withTeachers) })))
 app.post('/api/teacher/competitions', (req, res) => {
   const db = getDB()
   const body = req.body || {}
@@ -477,11 +559,12 @@ app.post('/api/teacher/competitions', (req, res) => {
     maxLeadTeachers: Math.max(1, Number(body.maxLeadTeachers) || 1),
     teamCount: 0,
     rules: body.rules || '',
-    teachers: Array.isArray(body.teachers) ? body.teachers : [],
+    teacherIds: teacherIdsOf(body, []),
+    teachers: [],
   }
   db.competitions.unshift(item)
   saveDB()
-  res.json(ok(item))
+  res.json(ok(withTeachers(item)))
 })
 app.put('/api/teacher/competitions/:id', (req, res) => {
   const db = getDB()
@@ -489,6 +572,8 @@ app.put('/api/teacher/competitions/:id', (req, res) => {
   if (!item) return res.json(fail(404, '比赛不存在'))
   const body = req.body || {}
   const range = body.dateRange || []
+  // 先记下原有的带队老师 id，避免本次未传时被清空
+  const prevIds = Array.isArray(item.teacherIds) ? item.teacherIds : (item.teachers || []).map((t) => String(t.id))
   Object.assign(item, body, {
     id: item.id,
     startTime: formatDateTime(body.startTime || range[0] || item.startTime),
@@ -496,12 +581,19 @@ app.put('/api/teacher/competitions/:id', (req, res) => {
     maxParticipants: Number(body.maxParticipants) || item.maxParticipants,
     maxTeams: Number(body.maxTeams) || item.maxTeams || 40,
     maxLeadTeachers: Math.max(1, Number(body.maxLeadTeachers) || item.maxLeadTeachers || 1),
-    teachers: Array.isArray(body.teachers) ? body.teachers : (item.teachers || []),
+    teachers: [],
   })
   delete item.dateRange
+  item.teacherIds = teacherIdsOf(body, prevIds)
   saveDB()
-  res.json(ok(item))
+  res.json(ok(withTeachers(item)))
 })
+// 从请求体提取带队老师 id 列表（只存 id，展示时按真实账号实时解析）
+function teacherIdsOf(body, fallback = []) {
+  if (Array.isArray(body.teacherIds)) return [...new Set(body.teacherIds.map(String).filter(Boolean))]
+  if (Array.isArray(body.teachers)) return [...new Set(body.teachers.map((t) => String(t.id)).filter(Boolean))]
+  return [...new Set(fallback.map(String).filter(Boolean))]
+}
 app.put('/api/teacher/competitions/:id/status', (req, res) => {
   const db = getDB()
   const item = db.competitions.find((c) => String(c.id) === String(req.params.id))
@@ -523,29 +615,14 @@ app.get('/api/teacher/applications', (req, res) => {
   const list = getDB().applications
   res.json(ok({ list, total: list.length }))
 })
-app.post('/api/teacher/applications/audit', (req, res) => {
-  const db = getDB()
-  const body = req.body || {}
-  const ids = body.ids || (body.id != null ? [body.id] : [])
-  const status = body.status || (body.action === 'reject' ? '已拒绝' : '已通过')
-  ids.forEach((id) => { const row = db.applications.find((a) => String(a.id) === String(id)); if (row) row.status = status })
-  saveDB()
-  res.json(ok({ success: true }))
-})
-
 app.get('/api/teacher/leader-teachers', (req, res) => {
-  const db = getDB()
-  const registered = db.registeredUsers.filter((u) => u.role === 'teacher' && (u.teacherType || 'leader') === 'leader')
-    .map((u) => ({ id: u.id, name: u.name, title: u.title || '带队教师', department: u.department || '', avatar: u.avatar || DEFAULT_AVATAR_URL, maxStudents: 20, currentStudents: 0, teacherId: u.username }))
-  const map = new Map()
-  ;[...BUILTIN_LEAD_TEACHERS, ...registered].forEach((t) => { if (!map.has(String(t.id))) map.set(String(t.id), t) })
-  res.json(ok({ list: [...map.values()] }))
+  // 直接取自真实教师账号（内置 + 注册），不再使用写死的演示老师
+  res.json(ok({ list: leadTeacherPool() }))
 })
 
 app.get('/api/teacher/teams-audit', (req, res) => {
   const user = requireUser(req, res)
   if (!user) return
-  if (user.teacherType === 'admin') return res.json(ok({ list: [], total: 0, disabled: true }))
   const db = getDB()
   const teacherKey = user.id || user.accountId
   const teacherName = user.name
@@ -572,17 +649,23 @@ app.post('/api/teacher/teams-audit', (req, res) => {
   if (!team) return res.json(fail(404, '队伍不存在'))
   const comp = db.competitions.find((c) => c.id === team.competitionId)
   const compName = comp?.name || '比赛'
-  const finalStatus = (body.action === 'reject' || body.status === '已拒绝') ? '已拒绝' : '已通过'
+  // 显式判定审核意图：只有明确要求「通过」或「拒绝」时才改动状态。
+  // 旧写法把任何未知取值都当成「已通过」，会出现「点拒绝却变成通过」的问题。
+  const wantReject = body.action === 'reject' || body.action === 'refuse' || body.status === '已拒绝' || body.status === 'reject' || body.pass === false
+  const wantPass = body.action === 'pass' || body.action === 'approve' || body.status === '已通过' || body.status === 'pass' || body.pass === true
+  if (!wantReject && !wantPass) return res.json(fail(400, '缺少审核结果，请指定 action=pass 或 action=reject'))
+  const finalStatus = wantReject ? '已拒绝' : '已通过'
   if (finalStatus === '已通过') {
     const approvedCount = db.teams.filter((t) => t.competitionId === team.competitionId && t.auditStatus === '已通过' && t.id !== team.id).length
     if (approvedCount >= (Number(comp?.maxTeams) || 40)) return res.json(fail(400, '本场比赛参赛队伍名额已满'))
     team.auditStatus = '已通过'
     team.rejectReason = ''
-    comp.teamCount = db.teams.filter((t) => t.competitionId === comp.id && t.auditStatus === '已通过').length
+    // 比赛可能已被删除，这里容错，避免整条审核接口 500
+    if (comp) comp.teamCount = db.teams.filter((t) => t.competitionId === comp.id && t.auditStatus === '已通过').length
   } else {
     team.auditStatus = '已拒绝'
     team.rejectReason = body.reason || ''
-    comp.teamCount = db.teams.filter((t) => t.competitionId === comp.id && ['待审核', '已通过'].includes(t.auditStatus)).length
+    if (comp) comp.teamCount = db.teams.filter((t) => t.competitionId === comp.id && ['待审核', '已通过'].includes(t.auditStatus)).length
   }
   saveDB()
   notifyTeamMembers(team, finalStatus === '已通过'
@@ -600,12 +683,8 @@ app.post('/api/teacher/guide-assign', (req, res) => {
 })
 app.get('/api/teacher/guide-teachers', (req, res) => {
   const db = getDB()
-  const pool = [
-    ...BUILTIN_LEAD_TEACHERS.map((t) => ({ ...t })),
-    ...db.registeredUsers.filter((u) => u.role === 'teacher').map((u) => ({ id: u.id, name: u.name, title: u.title || '带队教师', department: u.department || '', avatar: u.avatar || DEFAULT_AVATAR_URL, maxStudents: 20 })),
-  ]
   const map = new Map()
-  pool.forEach((t) => { if (!map.has(String(t.id))) map.set(String(t.id), { ...t, currentStudents: 0 }) })
+  allTeacherPool().forEach((t) => { if (!map.has(String(t.id))) map.set(String(t.id), { ...t, currentStudents: 0 }) })
   db.applications.forEach((a) => { if (a.guideAssigned && a.teacherId != null) { const t = map.get(String(a.teacherId)); if (t) t.currentStudents += 1 } })
   res.json(ok({ list: [...map.values()] }))
 })
@@ -641,16 +720,6 @@ app.get('/api/teacher/statistics', (req, res) => {
     trendData: { list: trendList },
   }))
 })
-app.get('/api/teacher/dashboard/trend', (req, res) => {
-  const apps = getDB().applications
-  const map = {}
-  apps.forEach((a) => { const key = String(a.applyTime || '').slice(5, 10); if (key) map[key] = (map[key] || 0) + 1 })
-  const pad = (n) => String(n).padStart(2, '0')
-  const now = new Date()
-  const list = []
-  for (let i = 6; i >= 0; i--) { const d = new Date(now); d.setDate(now.getDate() - i); const date = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; list.push({ date, fullDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, count: map[date] || 0 }) }
-  res.json(ok({ list }))
-})
 app.get('/api/teacher/dashboard/workload', (req, res) => {
   const apps = getDB().applications
   const map = {}
@@ -669,6 +738,27 @@ app.post('/api/teacher/announcements', (req, res) => {
   db.announcements.unshift(item)
   saveDB()
   res.json(ok(item))
+})
+app.put('/api/teacher/announcements/:id', (req, res) => {
+  const db = getDB()
+  const target = db.announcements.find((a) => String(a.id) === String(req.params.id))
+  if (!target) return res.json(fail(404, '公告不存在'))
+  const body = req.body || {}
+  if (body.title !== undefined) target.title = body.title
+  if (body.content !== undefined) target.content = body.content
+  if (body.type !== undefined) target.type = body.type
+  if (body.isTop !== undefined) target.isTop = !!body.isTop
+  target.updatedAt = formatDateTime(new Date())
+  saveDB()
+  res.json(ok(target))
+})
+app.delete('/api/teacher/announcements/:id', (req, res) => {
+  const db = getDB()
+  const before = db.announcements.length
+  db.announcements = db.announcements.filter((a) => String(a.id) !== String(req.params.id))
+  if (db.announcements.length === before) return res.json(fail(404, '公告不存在'))
+  saveDB()
+  res.json(ok({ success: true, id: req.params.id }))
 })
 
 // 资源
@@ -708,22 +798,25 @@ function formatSize(bytes) {
 }
 
 // ==================== 账号管理（管理员） ====================
-const BUILTIN_ACCOUNTS_VIEW = [
-  { id: 'student', role: 'student', username: 'student', name: '张同学', accountId: '2021001', major: '计算机科学与技术', grade: '大三', gender: '男', email: 'student@example.com', system: true },
-  { id: 'admin', role: 'teacher', username: 'admin', name: '管理员', accountId: 'admin', title: '管理员', department: '-', email: '', system: true },
-  { id: 'teacher', role: 'teacher', username: 'teacher', name: '李老师', accountId: 'T001', title: '管理员', department: '-', email: '', system: true },
-  { id: 'leader', role: 'teacher', username: 'leader', name: '王老师', accountId: 't1', title: '带队教师', department: '自动化', email: '', system: true },
-]
+// 内置账号直接从数据文件派生，新增内置账号时无需再维护两份清单
+function builtinAccountsView() {
+  return (getDB().accounts || []).map((u) => {
+    if (u.role === 'student') {
+      return { id: u.id, role: 'student', username: u.username, name: u.name, accountId: u.accountId || u.username, major: u.major || '-', grade: u.grade || '-', gender: u.gender || '-', email: u.email || '', system: true }
+    }
+    return { id: u.id, role: 'teacher', username: u.username, name: u.name, accountId: u.accountId || u.username, title: u.title || '带队教师', gender: u.gender || '-', email: u.email || '', system: true }
+  })
+}
 function normalizeAccount(u) {
   if (u.role === 'student') return { id: u.id, role: 'student', username: u.username, name: u.name, accountId: u.accountId || u.username, major: u.major || '-', grade: u.grade || '-', gender: u.gender || '-', email: u.email || '', system: false }
-  return { id: u.id, role: 'teacher', username: u.username, name: u.name, accountId: u.accountId || u.username, title: u.title || '带队教师', department: u.department || '-', email: u.email || '', system: false }
+  return { id: u.id, role: 'teacher', username: u.username, name: u.name, accountId: u.accountId || u.username, title: u.title || '带队教师', gender: u.gender || '-', email: u.email || '', system: false }
 }
 app.get('/api/admin/accounts', (req, res) => {
   const user = requireUser(req, res)
   if (!user || user.teacherType !== 'admin') return res.json(fail(403, '仅管理员可访问'))
   const db = getDB()
-  const { role, keyword, grade, major } = req.query
-  let list = [...BUILTIN_ACCOUNTS_VIEW, ...db.registeredUsers.map(normalizeAccount)]
+  const { role, keyword, grade, major, gender } = req.query
+  let list = [...builtinAccountsView(), ...db.registeredUsers.map(normalizeAccount)]
   if (role === 'student' || role === 'teacher') list = list.filter((a) => a.role === role)
   if (keyword) {
     const k = String(keyword).toLowerCase()
@@ -731,6 +824,7 @@ app.get('/api/admin/accounts', (req, res) => {
   }
   if (grade && role !== 'teacher') list = list.filter((a) => a.grade === grade)
   if (major && role !== 'teacher') list = list.filter((a) => a.major === major)
+  if (gender) list = list.filter((a) => a.gender === gender)
   res.json(ok({ list, total: list.length }))
 })
 app.post('/api/admin/accounts/reset-password', (req, res) => {
@@ -738,7 +832,7 @@ app.post('/api/admin/accounts/reset-password', (req, res) => {
   if (!user || user.teacherType !== 'admin') return res.json(fail(403, '仅管理员可操作'))
   const { id } = req.body || {}
   if (!id) return res.json(fail(400, '缺少账号标识'))
-  if (BUILTIN_ACCOUNTS_VIEW.some((a) => a.id === id)) return res.json(fail(400, '系统内置账号不可重置密码'))
+  if (builtinAccountsView().some((a) => a.id === id)) return res.json(fail(400, '系统内置账号不可重置密码'))
   const db = getDB()
   const target = db.registeredUsers.find((u) => u.id === id)
   if (!target) return res.json(fail(404, '账号不存在'))
@@ -751,7 +845,7 @@ app.post('/api/admin/accounts/delete', (req, res) => {
   if (!user || user.teacherType !== 'admin') return res.json(fail(403, '仅管理员可操作'))
   const { id } = req.body || {}
   if (!id) return res.json(fail(400, '缺少账号标识'))
-  if (BUILTIN_ACCOUNTS_VIEW.some((a) => a.id === id)) return res.json(fail(400, '系统内置账号不可删除'))
+  if (builtinAccountsView().some((a) => a.id === id)) return res.json(fail(400, '系统内置账号不可删除'))
   const db = getDB()
   if (!db.registeredUsers.some((u) => u.id === id)) return res.json(fail(404, '账号不存在'))
   db.registeredUsers = db.registeredUsers.filter((u) => u.id !== id)
@@ -762,39 +856,74 @@ app.post('/api/admin/accounts/delete', (req, res) => {
 // ==================== 消息 ====================
 app.get('/api/messages', (req, res) => {
   const user = getUserFromToken(req)
-  const role = (user?.role) || 'student'
-  const userName = user?.name || ''
-  const userId = user?.id || user?.accountId || ''
-  const list = getDB().messages.filter((item) => {
-    if (item.role && item.role !== role) return false
-    if (item.userId || item.userName) return item.userId === userId || item.userName === userName || (!userName && !userId)
-    return true
-  }).map((i) => ({ ...i }))
+  const visibleUser = user || { role: 'student', id: '', accountId: '', username: '', name: '' }
+  const list = getDB().messages.filter((item) => messageTargetsUser(item, visibleUser)).map((i) => ({ ...i }))
   res.json(ok({ list, total: list.length }))
 })
 app.put('/api/messages/read-all', (req, res) => {
-  getDB().messages.forEach((i) => { i.isRead = true })
+  const user = getUserFromToken(req)
+  const visibleUser = user || { role: 'student', id: '', accountId: '', username: '', name: '' }
+  getDB().messages.forEach((i) => {
+    if (messageTargetsUser(i, visibleUser)) i.isRead = true
+  })
   saveDB()
   res.json(ok({ success: true }))
 })
 app.put('/api/messages/:id/read', (req, res) => {
+  const user = getUserFromToken(req)
+  const visibleUser = user || { role: 'student', id: '', accountId: '', username: '', name: '' }
   const target = getDB().messages.find((i) => String(i.id) === String(req.params.id))
-  if (target) { target.isRead = true; saveDB() }
+  if (target && messageTargetsUser(target, visibleUser)) { target.isRead = true; saveDB() }
   res.json(ok({ success: true, id: req.params.id }))
 })
 
 // ==================== 文件上传 ====================
+// multer/busboy 以 latin1 解析上传文件名，中文会变成乱码，这里还原为 UTF-8
+function decodeUploadName(name = '') {
+  if (!name) return '未命名文件'
+  let decoded = name
+  try {
+    const buf = Buffer.from(name, 'latin1')
+    const utf8 = buf.toString('utf8')
+    // 只有能无损回转时才说明原始字节确实是 UTF-8
+    if (utf8 && Buffer.from(utf8, 'utf8').equals(buf)) decoded = utf8
+  } catch {
+    decoded = name
+  }
+  return decoded.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim() || '未命名文件'
+}
+
 const uploadDir = path.join(__dirname, 'uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^\w.\-一-龥]/g, '_')}`),
+  filename: (req, file, cb) => {
+    // 磁盘上只存 ASCII 安全文件名，避免各系统编码差异导致乱码
+    const original = decodeUploadName(file.originalname)
+    const dot = original.lastIndexOf('.')
+    const ext = dot > -1 ? original.slice(dot).toLowerCase() : ''
+    const safeExt = /^\.[a-z0-9]{1,8}$/.test(ext) ? ext : ''
+    const rand = Math.random().toString(36).slice(2, 8)
+    cb(null, `${Date.now()}-${rand}${safeExt}`)
+  },
 })
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } })
+// 与前端提示保持一致：单文件最大 50MB（此前 5MB 会导致稍大的课件/视频上传失败）
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } })
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.json(fail(400, '未收到文件'))
-  const url = `/uploads/${req.file.filename}`
-  res.json(ok({ url, name: req.file.originalname, size: req.file.size }))
+  const url = `/uploads/${encodeURIComponent(req.file.filename)}`
+  // name 返回解码后的原始文件名，前端展示/下载用
+  res.json(ok({ url, name: decodeUploadName(req.file.originalname), size: req.file.size }))
+})
+// 按原始文件名下载（兼容中文名）
+app.get('/api/files/download', (req, res) => {
+  const raw = String(req.query.file || '')
+  const base = path.basename(raw)
+  const target = path.join(uploadDir, base)
+  if (!base || !fs.existsSync(target)) return res.status(404).json(fail(404, '文件不存在'))
+  const name = decodeUploadName(String(req.query.name || base))
+  res.setHeader('Content-Disposition', `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(name)}`)
+  res.sendFile(target)
 })
 app.use('/uploads', express.static(uploadDir))
 

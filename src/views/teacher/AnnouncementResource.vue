@@ -150,7 +150,7 @@
 
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getAnnouncements, publishAnnouncement } from '@/api'
+import { getAnnouncements, publishAnnouncement, editAnnouncement, deleteAnnouncement } from '@/api'
 import { getList, download, remove } from '@/api/resource'
 import ResourceUpload from './components/ResourceUpload.vue'
 
@@ -161,7 +161,7 @@ const showAnnoDialog = ref(false)
 const isEditing = ref(false)
 const annoSubmitting = ref(false)
 const annoFormRef = ref()
-const annoForm = reactive({ title: '', type: '比赛通知', content: '', isTop: false })
+const annoForm = reactive({ id: '', title: '', type: '比赛通知', content: '', isTop: false })
 const annoRules = {
   title: [{ required: true, message: '请输入公告标题' }],
   type: [{ required: true, message: '请选择公告类型' }],
@@ -204,13 +204,14 @@ const filteredAnnouncements = computed(() => {
 
 const openAnnoDialog = () => {
   isEditing.value = false
-  Object.assign(annoForm, { title: '', type: '比赛通知', content: '', isTop: false })
+  Object.assign(annoForm, { id: '', title: '', type: '比赛通知', content: '', isTop: false })
   showAnnoDialog.value = true
 }
 
 const editAnno = (anno) => {
   isEditing.value = true
   Object.assign(annoForm, {
+    id: anno.id,
     title: anno.title,
     type: anno.type,
     content: anno.content,
@@ -227,8 +228,14 @@ const handleAnnoSubmit = async () => {
   }
   annoSubmitting.value = true
   try {
-    await publishAnnouncement({ ...annoForm })
-    ElMessage.success(isEditing.value ? '公告已保存' : '公告已发布')
+    const { id, ...payload } = annoForm
+    if (isEditing.value && id) {
+      await editAnnouncement(id, payload)
+      ElMessage.success('公告已保存')
+    } else {
+      await publishAnnouncement(payload)
+      ElMessage.success('公告已发布')
+    }
     showAnnoDialog.value = false
     await loadAnnouncements()
   } finally {
@@ -237,8 +244,13 @@ const handleAnnoSubmit = async () => {
 }
 
 const deleteAnno = async (id) => {
-  await ElMessageBox.confirm('确定删除这条公告吗？', '确认删除', { type: 'warning' })
-  announcements.value = announcements.value.filter(a => a.id !== id)
+  try {
+    await ElMessageBox.confirm('确定删除这条公告吗？', '确认删除', { type: 'warning' })
+  } catch {
+    return
+  }
+  await deleteAnnouncement(id)
+  await loadAnnouncements()
   ElMessage.success('已删除')
 }
 
@@ -248,7 +260,11 @@ const onUploadSuccess = async () => {
 }
 
 const deleteRes = async (id) => {
-  await ElMessageBox.confirm('确定删除这个资源吗？', '确认删除', { type: 'warning' })
+  try {
+    await ElMessageBox.confirm('确定删除这个资源吗？', '确认删除', { type: 'warning' })
+  } catch {
+    return
+  }
   await remove(id)
   resourceList.value = resourceList.value.filter(r => r.id !== id)
   ElMessage.success('已删除')
@@ -258,11 +274,16 @@ const downloadRes = async (res) => {
   downloadingId.value = res.id
   try {
     const result = await download(res.id)
-    const url = result.data?.url
+    const rawUrl = result.data?.url || ''
     res.downloadCount = result.data?.downloadCount ?? (res.downloadCount + 1)
-    if (url) {
+    if (rawUrl) {
+      // 本地文件走 download 接口，保证下载下来的是中文原始文件名
+      const diskName = rawUrl.split('/').pop()
+      const href = rawUrl.startsWith('/uploads/') && diskName
+        ? `/api/files/download?file=${encodeURIComponent(diskName)}&name=${encodeURIComponent(result.data?.name || res.name)}`
+        : rawUrl
       const a = document.createElement('a')
-      a.href = url
+      a.href = href
       a.target = '_blank'
       a.rel = 'noopener'
       a.download = result.data?.name || res.name

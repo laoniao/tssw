@@ -35,8 +35,8 @@
       <el-select v-if="activeTab === 'student'" v-model="majorFilter" placeholder="专业" clearable class="filter-select-sm">
         <el-option v-for="m in studentMajors" :key="m" :label="m" :value="m" />
       </el-select>
-      <el-select v-if="activeTab === 'teacher'" v-model="deptFilter" placeholder="部门" clearable class="filter-select-sm">
-        <el-option v-for="d in teacherDepts" :key="d" :label="d" :value="d" />
+      <el-select v-if="activeTab === 'teacher'" v-model="genderFilter" placeholder="性别" clearable class="filter-select-sm">
+        <el-option v-for="g in teacherGenders" :key="g" :label="g" :value="g" />
       </el-select>
       <el-tag type="info" effect="plain" class="count-tag">{{ filteredAccounts.length }} 个账号</el-tag>
     </div>
@@ -52,10 +52,8 @@
         <template #default="{ row }">{{ row.accountId || row.username }}</template>
       </el-table-column>
       <el-table-column v-if="activeTab === 'student'" prop="grade" label="年级" width="100" />
-      <el-table-column :label="activeTab === 'student' ? '专业' : '部门'" min-width="150">
-        <template #default="{ row }">{{ activeTab === 'student' ? row.major : row.department }}</template>
-      </el-table-column>
-      <el-table-column prop="gender" label="性别" width="80" v-if="activeTab === 'student'" />
+      <el-table-column v-if="activeTab === 'student'" prop="major" label="专业" min-width="150" />
+      <el-table-column prop="gender" label="性别" width="80" />
       <el-table-column prop="email" label="邮箱" min-width="160" show-overflow-tooltip />
       <el-table-column label="角色" width="100">
         <template #default="{ row }">
@@ -110,7 +108,7 @@ const allAccounts = ref([])
 const keyword = ref('')
 const gradeFilter = ref('')
 const majorFilter = ref('')
-const deptFilter = ref('')
+const genderFilter = ref('')
 
 const resetId = ref('')
 const deleteId = ref('')
@@ -134,7 +132,7 @@ watch(activeTab, () => {
   page.value = 1
   gradeFilter.value = ''
   majorFilter.value = ''
-  deptFilter.value = ''
+  genderFilter.value = ''
   keyword.value = ''
   fetchAccounts()
 })
@@ -145,8 +143,8 @@ const studentGrades = computed(() =>
 const studentMajors = computed(() =>
   [...new Set(allAccounts.value.filter(a => a.role === 'student').map(a => a.major).filter(Boolean))],
 )
-const teacherDepts = computed(() =>
-  [...new Set(allAccounts.value.filter(a => a.role === 'teacher').map(a => a.department).filter(Boolean))],
+const teacherGenders = computed(() =>
+  [...new Set(allAccounts.value.filter(a => a.role === 'teacher').map(a => a.gender).filter(Boolean))],
 )
 
 const filteredAccounts = computed(() => {
@@ -157,8 +155,8 @@ const filteredAccounts = computed(() => {
       || (a.accountId || a.username || '').toLowerCase().includes(kw)
     const matchGrade = !gradeFilter.value || a.grade === gradeFilter.value
     const matchMajor = !majorFilter.value || a.major === majorFilter.value
-    const matchDept = !deptFilter.value || a.department === deptFilter.value
-    return matchKw && matchGrade && matchMajor && matchDept
+    const matchGender = !genderFilter.value || a.gender === genderFilter.value
+    return matchKw && matchGrade && matchMajor && matchGender
   })
 })
 

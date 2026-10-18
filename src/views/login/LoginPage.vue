@@ -139,10 +139,10 @@
               >
                 <template #title>
                   <span v-if="activeRole === 'student'">
-                    测试账号：<strong>student</strong>&nbsp;&nbsp;密码：<strong>123456</strong>
+                    测试账号：<strong>student</strong> ~ <strong>student6</strong>（也可用学号 2021001~2021006），密码：<strong>123456</strong>
                   </span>
                   <span v-else>
-                    管理员：<strong>admin</strong> / 带队老师：<strong>leader</strong>，密码均为 <strong>123456</strong>
+                    管理员：<strong>admin</strong> / <strong>admin2</strong>，带队老师：<strong>leader</strong> / <strong>teacher2</strong> ~ <strong>teacher4</strong>，密码均为 <strong>123456</strong>
                   </span>
                 </template>
               </el-alert>
@@ -253,6 +253,15 @@
                     <el-input v-model="teacherRegForm.confirmPassword" type="password" placeholder="确认密码" class="custom-input" size="large" show-password />
                   </div>
                 </el-form-item>
+                <el-form-item prop="gender">
+                  <div class="input-wrapper">
+                    <el-icon class="input-icon"><User /></el-icon>
+                    <el-select v-model="teacherRegForm.gender" placeholder="请选择性别（选填）" class="custom-input" size="large" clearable>
+                      <el-option label="男" value="男" />
+                      <el-option label="女" value="女" />
+                    </el-select>
+                  </div>
+                </el-form-item>
                 <el-form-item prop="email">
                   <div class="input-wrapper">
                     <el-icon class="input-icon"><Message /></el-icon>
@@ -342,7 +351,7 @@ const studentRegRules = {
 
 // ============ 教师注册表单 ============
 const teacherRegForm = reactive({
-  username: '', name: '', password: '', confirmPassword: '', email: '',
+  username: '', name: '', password: '', confirmPassword: '', gender: '', email: '',
 })
 const validateTeacherConfirm = (rule, value, callback) => {
   if (value !== teacherRegForm.password) callback(new Error('两次输入的密码不一致'))
@@ -425,6 +434,7 @@ const handleTeacherRegister = async () => {
       username: teacherRegForm.username,
       password: teacherRegForm.password,
       name: teacherRegForm.name,
+      gender: teacherRegForm.gender,
       email: teacherRegForm.email,
     })
     userStore.logout()

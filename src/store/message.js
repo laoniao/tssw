@@ -42,6 +42,11 @@ export const useMessageStore = defineStore('message', () => {
     })
   }
 
+  // 清空消息（退出登录时调用）
+  const clearMessages = () => {
+    list.value = []
+  }
+
   return {
     list,
     loading,
@@ -50,6 +55,7 @@ export const useMessageStore = defineStore('message', () => {
     fetchMessages,
     markAsRead,
     markAllAsRead,
+    clearMessages,
   }
 }, {
   persist: {

@@ -2,8 +2,8 @@ import request from '@/utils/request'
 
 // ==================== 通用接口 ====================
 
-// 上传文件
-export function uploadFile(file) {
+// 上传文件（onProgress 回调可选，用于渲染真实上传进度）
+export function uploadFile(file, onProgress) {
   const formData = new FormData()
   formData.append('file', file)
   return request({
@@ -12,6 +12,11 @@ export function uploadFile(file) {
     data: formData,
     headers: {
       'Content-Type': 'multipart/form-data',
+    },
+    // 上传单独放宽超时：全局 15s 会让稍大的课件/视频还没传完就被中断
+    timeout: 120000,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
     },
   })
 }
@@ -53,63 +58,12 @@ export function getCompetitionDetail(id) {
   })
 }
 
-// 报名比赛（旧个人报名）
-export function registerCompetition(data) {
-  return request({
-    url: '/competitions/register',
-    method: 'post',
-    data,
-  })
-}
-
 // 队长选择队伍后申请带队老师
 export function registerTeamCompetition(data) {
   return request({
     url: '/competitions/team-register',
     method: 'post',
     data,
-  })
-}
-
-// 获取队伍列表
-export function getTeams(params) {
-  return request({
-    url: '/teams',
-    method: 'get',
-    params,
-  })
-}
-
-// 创建队伍
-export function createTeam(data) {
-  return request({
-    url: '/teams',
-    method: 'post',
-    data,
-  })
-}
-
-// 加入队伍
-export function joinTeam(teamId) {
-  return request({
-    url: `/teams/${teamId}/join`,
-    method: 'post',
-  })
-}
-
-// 获取我的队伍
-export function getMyTeams() {
-  return request({
-    url: '/my-teams',
-    method: 'get',
-  })
-}
-
-// 获取智能推荐
-export function getRecommendations() {
-  return request({
-    url: '/recommendations',
-    method: 'get',
   })
 }
 
@@ -122,37 +76,11 @@ export function getWorks(params) {
   })
 }
 
-// 点赞作品
-export function likeWork(workId) {
-  return request({
-    url: `/works/${workId}/like`,
-    method: 'post',
-  })
-}
-
-// 评论作品
-export function commentWork(workId, data) {
-  return request({
-    url: `/works/${workId}/comments`,
-    method: 'post',
-    data,
-  })
-}
-
 // 获取个人中心数据
 export function getStudentProfile() {
   return request({
     url: '/student/profile',
     method: 'get',
-  })
-}
-
-// 更新个人信息
-export function updateStudentProfile(data) {
-  return request({
-    url: '/student/profile',
-    method: 'put',
-    data,
   })
 }
 
@@ -229,15 +157,6 @@ export function getApplications(params) {
   })
 }
 
-// 审核报名
-export function auditApplication(data) {
-  return request({
-    url: '/teacher/applications/audit',
-    method: 'post',
-    data,
-  })
-}
-
 // 获取队伍审核列表
 export function getTeamAuditList(params) {
   return request({
@@ -307,28 +226,19 @@ export function publishAnnouncement(data) {
   })
 }
 
-// 获取资源列表
-export function getResources(params) {
+// 编辑公告
+export function editAnnouncement(id, data) {
   return request({
-    url: '/teacher/resources',
-    method: 'get',
-    params,
-  })
-}
-
-// 上传资源
-export function uploadResource(data) {
-  return request({
-    url: '/teacher/resources',
-    method: 'post',
+    url: `/teacher/announcements/${id}`,
+    method: 'put',
     data,
   })
 }
 
-// 删除资源
-export function deleteResource(id) {
+// 删除公告
+export function deleteAnnouncement(id) {
   return request({
-    url: `/teacher/resources/${id}`,
+    url: `/teacher/announcements/${id}`,
     method: 'delete',
   })
 }

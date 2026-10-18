@@ -1,5 +1,5 @@
 /** 头像 / 封面渐变色工具 — 全站统一 */
-export const AVATAR_COLORS = [
+const AVATAR_COLORS = [
   '#2563eb',
   '#7c3aed',
   '#db2777',
@@ -10,7 +10,7 @@ export const AVATAR_COLORS = [
   '#ca8a04',
 ]
 
-export const TEACHER_COLORS = [
+const TEACHER_COLORS = [
   '#1d4ed8',
   '#0f766e',
   '#7c3aed',
@@ -19,7 +19,7 @@ export const TEACHER_COLORS = [
   '#0369a1',
 ]
 
-export const COVER_GRADIENTS = [
+const COVER_GRADIENTS = [
   'linear-gradient(135deg,#2563eb,#1e3a8a)',
   'linear-gradient(135deg,#7c3aed,#4c1d95)',
   'linear-gradient(135deg,#0891b2,#155e75)',
@@ -30,7 +30,7 @@ export const COVER_GRADIENTS = [
   'linear-gradient(135deg,#0284c8,#075985)',
 ]
 
-export const TEAM_GRADIENTS = [
+const TEAM_GRADIENTS = [
   { background: 'linear-gradient(135deg,#2563eb,#1e3a8a)', color: '#fff' },
   { background: 'linear-gradient(135deg,#7c3aed,#4c1d95)', color: '#fff' },
   { background: 'linear-gradient(135deg,#0891b2,#155e75)', color: '#fff' },

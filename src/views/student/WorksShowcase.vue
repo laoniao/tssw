@@ -147,7 +147,8 @@ const compFilterOptions = [
 onMounted(async () => {
   try {
     const res = await getWorks()
-    allWorks.value = res.data.list.map(w => ({ ...w, liked: false }))
+    // liked 由后端按当前登录用户返回，不再一律置 false
+    allWorks.value = (res.data?.list || []).map(w => ({ ...w, liked: !!w.liked }))
   } finally {
     loading.value = false
   }
@@ -155,13 +156,14 @@ onMounted(async () => {
 
 const filteredWorks = computed(() => {
   let list = allWorks.value.filter(w => {
-    const keyOk = !searchKey.value || w.title.includes(searchKey.value) || w.description.includes(searchKey.value)
+    const key = searchKey.value
+    const keyOk = !key || String(w.title || '').includes(key) || String(w.description || '').includes(key)
     const compOk = !filterComp.value || w.competitionId === filterComp.value
     return keyOk && compOk
   })
 
-  if (sortBy.value === 'hot') list = [...list].sort((a, b) => b.likes - a.likes)
-  else list = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  if (sortBy.value === 'hot') list = [...list].sort((a, b) => (b.likes || 0) - (a.likes || 0))
+  else list = [...list].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
 
   return list
 })

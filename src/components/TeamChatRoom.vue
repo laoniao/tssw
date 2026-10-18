@@ -42,8 +42,8 @@
               </div>
               <a
                 class="file-download"
-                :href="msg.content"
-                :download="msg.fileName"
+                :href="downloadUrl(msg)"
+                :download="msg.fileName || '文件'"
                 target="_blank"
                 rel="noopener"
               >
@@ -174,7 +174,11 @@ const uploadAndSend = async (file, type) => {
   const formData = new FormData()
   formData.append('file', file)
   try {
-    const res = await http.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    // timeout 放宽：全局 15s 对大文件不够用
+    const res = await http.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    })
     const { url, name, size } = res.data
     await sendMsg(type === 'image'
       ? { type: 'image', content: url }
@@ -204,6 +208,16 @@ const onFilePicked = (e) => {
     return
   }
   uploadAndSend(file, 'file')
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+
+// 通过下载接口取回文件，保证保存时用的是原始中文文件名
+const downloadUrl = (msg) => {
+  const url = msg.content || ''
+  if (!url.startsWith('/uploads/')) return url
+  const file = url.slice('/uploads/'.length)
+  return `${API_BASE}/files/download?file=${encodeURIComponent(file)}&name=${encodeURIComponent(msg.fileName || '文件')}`
 }
 
 const formatSize = (bytes = 0) => {

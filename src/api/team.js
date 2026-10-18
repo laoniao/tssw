@@ -26,14 +26,6 @@ export function getMyTeams() {
   })
 }
 
-// 直接申请加入队伍（找队伍）
-export function joinTeam(teamId) {
-  return request({
-    url: `/teams/${teamId}/join`,
-    method: 'post',
-  })
-}
-
 // 生成邀请链接
 export function generateInvite(teamId) {
   return request({
@@ -48,6 +40,15 @@ export function apply(code) {
     url: '/teams/apply',
     method: 'post',
     data: { code },
+  })
+}
+
+// 直接申请加入某支队伍（同样走队长审核流程）
+export function applyTeam(teamId, remark = '') {
+  return request({
+    url: '/teams/apply',
+    method: 'post',
+    data: { teamId, remark },
   })
 }
 

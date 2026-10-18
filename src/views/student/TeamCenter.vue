@@ -117,7 +117,7 @@
             </div>
 
             <!-- 聊天室入口（学生与带队老师均可进入发言） -->
-            <div class="chat-preview" @click="chatTeam = team">
+            <div class="chat-preview" @click="openChat(team)">
               <div class="chat-icon"><el-icon><ChatDotRound /></el-icon></div>
               <div class="chat-text">
                 <span class="chat-title">队伍聊天室</span>
@@ -182,6 +182,7 @@
               size="small"
               class="join-btn"
               :disabled="team.status !== '招募中'"
+              :loading="joiningId === team.id"
               @click="handleJoin(team)"
             >
               {{ team.status === '招募中' ? '申请加入' : '已满员' }}
@@ -299,7 +300,7 @@ import {
   getTeams,
   getMyTeams,
   createTeam,
-  joinTeam,
+  applyTeam,
   generateInvite,
   apply,
   getTeamApplications,
@@ -323,6 +324,7 @@ const teamSearch = ref('')
 const teamStatusFilter = ref('')
 const inviteCodeInput = ref('')
 const applyingByCode = ref(false)
+const joiningId = ref(null)
 
 const showCreateDialog = ref(false)
 const creating = ref(false)
@@ -392,10 +394,19 @@ const handleCreate = async () => {
 }
 
 const handleJoin = async (team) => {
-  await joinTeam(team.id)
-  ElMessage.success(`已申请加入「${team.name}」，等待队长审核`)
-  activeTab.value = 'apply'
-  applyListRef.value?.refresh?.()
+  joiningId.value = team.id
+  try {
+    // 走「提交申请 → 队长审核」流程，而不是直接把自己塞进队伍
+    await applyTeam(team.id)
+    ElMessage.success(`已申请加入「${team.name}」，等待队长审核`)
+    activeTab.value = 'apply'
+    applyListRef.value?.refresh?.()
+    await loadTeams()
+  } catch (e) {
+    ElMessage.error(e.message || '申请失败')
+  } finally {
+    joiningId.value = null
+  }
 }
 
 const handleApplyByCode = async () => {
@@ -434,9 +445,16 @@ const handleGenerateInvite = async (team) => {
   inviteLoadingId.value = team.id
   try {
     const res = await generateInvite(team.id)
-    inviteResult.value = res.data
-    team.inviteCode = res.data.inviteCode
+    const data = res.data || {}
+    // 后端只返回 inviteCode，邀请链接在前端拼出来（此前读 inviteLink 恒为空）
+    inviteResult.value = {
+      ...data,
+      inviteLink: `${window.location.origin}/student/invite?code=${encodeURIComponent(data.inviteCode || '')}`,
+    }
+    team.inviteCode = data.inviteCode
     showInviteDialog.value = true
+  } catch (e) {
+    ElMessage.error(e.message || '生成邀请码失败')
   } finally {
     inviteLoadingId.value = null
   }
@@ -448,8 +466,12 @@ const openInvitePage = () => {
   router.push({ path: '/student/invite', query: { code: inviteResult.value.inviteCode } })
 }
 
-const openAudit = async (team) => {
-  auditTeam.value = team
+const openChat = (team) => {
+  chatTeam.value = team
+  showChat.value = true
+}
+
+const openAudit = async (team) => {  auditTeam.value = team
   showAuditDialog.value = true
   auditLoading.value = true
   try {
@@ -461,11 +483,15 @@ const openAudit = async (team) => {
 }
 
 const handleAudit = async (row, action) => {
-  await auditApplication({ id: row.id, action })
-  ElMessage.success(action === 'approve' ? '已通过申请' : '已拒绝申请')
-  const res = await getTeamApplications(auditTeam.value.id)
-  auditList.value = res.data?.list || []
-  await loadTeams()
+  try {
+    await auditApplication({ id: row.id, action })
+    ElMessage.success(action === 'approve' ? '已通过申请' : '已拒绝申请')
+    const res = await getTeamApplications(auditTeam.value.id)
+    auditList.value = res.data?.list || []
+    await loadTeams()
+  } catch (e) {
+    ElMessage.error(e.message || '审核失败')
+  }
 }
 
 const applyStatusType = (status) =>

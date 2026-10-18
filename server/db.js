@@ -143,7 +143,7 @@ const SEED = {
   teamApplications: [
     { id: 1, teamId: 1, teamName: '星火硬件队', inviteCode: 'ABC123', applicantName: '李明', applicantAvatar: DEFAULT_AVATAR, applicantMajor: '自动化', applyTime: '2026-03-08 10:22:00', status: '待审核', remark: '希望加入硬件组' },
     { id: 2, teamId: 1, teamName: '星火硬件队', inviteCode: 'ABC123', applicantName: '王芳', applicantAvatar: DEFAULT_AVATAR, applicantMajor: '计算机科学与技术', applyTime: '2026-03-09 14:05:00', status: '待审核', remark: '擅长嵌入式开发' },
-    { id: 3, teamId: 2, teamName: '智联电气组', inviteCode: 'TEAM88', applicantName: '张同学', applicantAvatar: DEFAULT_AVATAR, applicantMajor: '计算机科学与技术', applyTime: '2026-04-05 09:30:00', status: '已通过', remark: '通过邀请码申请', isMine: true },
+    { id: 3, teamId: 2, teamName: '智联电气组', inviteCode: 'TEAM88', applicantName: '张同学', applicantAvatar: DEFAULT_AVATAR, applicantMajor: '计算机科学与技术', applyTime: '2026-04-05 09:30:00', status: '已通过', remark: '通过邀请码申请' },
   ],
   announcements: [
     { id: 1, title: '2026 春季学科竞赛报名开启', content: '本学期多项竞赛已开放报名，请同学们登录平台查看详情并及时组队。', type: '比赛通知', createdAt: '2026-03-01 09:00:00', isTop: true },
@@ -160,16 +160,25 @@ const SEED = {
   ],
   messages: [
     { id: 1, type: 'system', typeLabel: '系统通知', title: '欢迎使用师生交互平台', content: '您可以在此完成比赛报名、组队与审核等操作。', time: '2026-03-01 08:00:00', isRead: false, role: 'student' },
-    { id: 2, type: 'review', typeLabel: '审核结果', title: '报名审核提醒', content: '有新的学生报名待审核，请前往报名管理处理。', time: '2026-03-05 12:00:00', isRead: false, role: 'teacher' },
-    { id: 3, type: 'invite', typeLabel: '组队邀请', title: '收到组队邀请', content: '「星火硬件队」邀请您加入，请前往组队中心查看。', time: '2026-03-08 16:20:00', isRead: true, role: 'student' },
+    // 注意：审核提醒 / 审核结果类消息必须带 userId 或 userName（定向到人），
+    // 不允许预置无收件人的广播消息，否则会出现「所有老师共用一套消息」的问题。
   ],
   teamMessages: {}, // { [teamId]: [ {id, type, sender, senderColor, content, fileUrl, fileName, fileSize, time} ] }
   // 系统内置账号（不可删除）
   accounts: [
     { id: 'student', role: 'student', username: 'student', name: '张同学', password: '123456', accountId: '2021001', major: '计算机科学与技术', grade: '大三', gender: '男', email: 'student@example.com', system: true, avatar: DEFAULT_AVATAR },
-    { id: 'admin', role: 'teacher', username: 'admin', name: '管理员', password: '123456', accountId: 'admin', title: '管理员', department: '-', teacherType: 'admin', email: '', system: true, avatar: DEFAULT_AVATAR },
-    { id: 'teacher', role: 'teacher', username: 'teacher', name: '李老师', password: '123456', accountId: 'T001', title: '管理员', department: '-', teacherType: 'admin', email: '', system: true, avatar: DEFAULT_AVATAR },
-    { id: 'leader', role: 'teacher', username: 'leader', name: '王老师', password: '123456', accountId: 't1', title: '带队教师', department: '自动化', teacherType: 'leader', email: '', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'student2', role: 'student', username: 'student2', name: '李雪', password: '123456', accountId: '2021002', major: '人工智能', grade: '大二', gender: '女', email: 'student2@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'student3', role: 'student', username: 'student3', name: '王浩', password: '123456', accountId: '2021003', major: '自动化', grade: '大三', gender: '男', email: 'student3@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'student4', role: 'student', username: 'student4', name: '陈静', password: '123456', accountId: '2021004', major: '计算机科学与技术', grade: '大四', gender: '女', email: 'student4@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'student5', role: 'student', username: 'student5', name: '赵磊', password: '123456', accountId: '2021005', major: '电气工程及其自动化', grade: '大二', gender: '男', email: 'student5@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'student6', role: 'student', username: 'student6', name: '孙悦', password: '123456', accountId: '2021006', major: '建筑电气与智能化', grade: '大三', gender: '女', email: 'student6@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'admin', role: 'teacher', username: 'admin', name: '管理员', password: '123456', accountId: 'admin', title: '管理员', gender: '男', teacherType: 'admin', email: '', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'teacher', role: 'teacher', username: 'teacher', name: '李老师', password: '123456', accountId: 'T001', title: '带队教师', department: '计算机', gender: '女', teacherType: 'leader', email: '', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'leader', role: 'teacher', username: 'leader', name: '王老师', password: '123456', accountId: 't1', title: '带队教师', gender: '男', teacherType: 'leader', email: '', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'teacher2', role: 'teacher', username: 'teacher2', name: '赵老师', password: '123456', accountId: 'T002', title: '带队教师', department: '电气工程', gender: '男', teacherType: 'leader', email: 'teacher2@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'teacher3', role: 'teacher', username: 'teacher3', name: '陈老师', password: '123456', accountId: 'T003', title: '带队教师', department: '建筑电气', gender: '女', teacherType: 'leader', email: 'teacher3@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'teacher4', role: 'teacher', username: 'teacher4', name: '刘老师', password: '123456', accountId: 'T004', title: '带队教师', department: '计算机', gender: '男', teacherType: 'leader', email: 'teacher4@example.com', system: true, avatar: DEFAULT_AVATAR },
+    { id: 'admin2', role: 'teacher', username: 'admin2', name: '周主任', password: '123456', accountId: 'T005', title: '带队教师', department: '自动化', gender: '女', teacherType: 'leader', email: 'admin2@example.com', system: true, avatar: DEFAULT_AVATAR },
   ],
   registeredUsers: [], // 注册账号（学生/教师），与 accounts 合并即全量账号
   idSeq: { applications: 4, teams: 3, teamApplications: 3, announcements: 2, works: 3, resources: 2, messages: 3 },
@@ -207,7 +216,14 @@ export function saveDB() {
 
 export function nextId(key) {
   const seq = (state.idSeq = state.idSeq || {})
-  seq[key] = (seq[key] || 0) + 1
+  // 仅依赖 idSeq 会在种子数据 / 手工编辑 / 部署迁移后产生重复 id（例如出现两个 id=1 的比赛），
+  // 这里再与现有集合里的最大数字 id 对齐，保证每次返回的都是未占用的新 id。
+  const list = Array.isArray(state[key]) ? state[key] : []
+  const maxExisting = list.reduce((max, item) => {
+    const n = Number(item && item.id)
+    return Number.isFinite(n) && n > max ? n : max
+  }, 0)
+  seq[key] = Math.max(Number(seq[key]) || 0, maxExisting) + 1
   return seq[key]
 }
 

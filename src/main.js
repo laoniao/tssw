@@ -9,12 +9,7 @@ import App from './App.vue'
 import router from './router'
 import '@/styles/global.scss'
 
-// 数据层：默认加载浏览器内 mock（纯前端演示）。
-// 当 VITE_USE_REAL_API=true 时（对接真实后端），跳过 mock 拦截，改用真实 API。
-if (!import.meta.env.VITE_USE_REAL_API) {
-  await import('./mock')
-}
-
+// 数据层：全部走真实后端接口（server/），浏览器内 mock 层已移除。
 const app = createApp(App)
 
 // Pinia 状态管理 + 持久化

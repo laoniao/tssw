@@ -97,6 +97,8 @@ const handleApply = async () => {
     await apply(code.value)
     ElMessage.success('申请已提交，请等待队长审核')
     router.push('/student/team?tab=apply')
+  } catch (e) {
+    ElMessage.error(e.message || '申请失败')
   } finally {
     applying.value = false
   }

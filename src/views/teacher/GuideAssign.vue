@@ -171,15 +171,21 @@ const assignedPairs = ref([])
 const teachers = ref([])
 
 onMounted(async () => {
-  const [appRes, teacherRes] = await Promise.all([getApplications(), getGuideTeachers()])
-  const raw = appRes.data?.list
-  allApplications.value = Array.isArray(raw) ? raw : (raw?.list || [])
-  teachers.value = teacherRes.data?.list || []
-  // 已分配指导老师的展示在「已分配记录」
-  assignedPairs.value = allApplications.value
-    .filter(r => r.guideAssigned)
-    .map(r => ({ ...r, teacher: teachers.value.find(t => String(t.id) === String(r.teacherId)) || null }))
-  loading.value = false
+  try {
+    const [appRes, teacherRes] = await Promise.all([getApplications(), getGuideTeachers()])
+    const raw = appRes.data?.list
+    allApplications.value = Array.isArray(raw) ? raw : (raw?.list || [])
+    teachers.value = teacherRes.data?.list || []
+    // 已分配指导老师的展示在「已分配记录」
+    assignedPairs.value = allApplications.value
+      .filter(r => r.guideAssigned)
+      .map(r => ({ ...r, teacher: teachers.value.find(t => String(t.id) === String(r.teacherId)) || null }))
+  } catch (e) {
+    ElMessage.error(e.message || '加载失败')
+  } finally {
+    // 无论成功失败都要关掉 loading，否则请求出错时页面一直转圈
+    loading.value = false
+  }
 })
 
 const unassignedStudents = computed(() =>
@@ -188,7 +194,7 @@ const unassignedStudents = computed(() =>
 
 const filteredUnassigned = computed(() =>
   unassignedStudents.value.filter(r =>
-    !studentSearch.value || r.student.name.includes(studentSearch.value)
+    !studentSearch.value || String(r.student?.name || '').includes(studentSearch.value)
   )
 )
 
